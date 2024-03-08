@@ -1,0 +1,121 @@
+{
+  "Header": {
+    "Version": 0.1,
+    "Date": 20230330,
+    "UserID": "xxx",
+    "Comment": "Comment",
+    "ProjectName": null
+  },
+  "AEDT": {
+    "Version": null,
+    "InstallPath": null
+  },
+  "Import": {
+    "LayoutType": null,
+    "LayoutVersion": null,
+    "LayoutPath": null,
+    "ControlFile": "",
+    "EdbOutPath": null,
+    "extractExePath": null
+  },
+  "Stackup": {
+    "Matrials": {
+      "FR4": {
+        "DK": "3.8",
+        "DF": "0.015"
+      }
+    },
+    "Layers": []
+  },
+  "Component": {
+    "Resistor": "R.*",
+    "Inductor": "L.*",
+    "Capacitor": "C.*",
+    "Ending": "U.*,J.*",
+    "ThruCompForSignal": [
+      "R.*",
+      "L.*",
+      "F.*",
+      "D.*",
+      "C.*"
+    ],
+    "MaxThruDCRForSignal": 300,
+    "ThruCompForPower": [
+      "R.*",
+      "L.*",
+      "F.*",
+      "D.*"
+    ],
+    "MaxThruDCRForPower": 10,
+    "BOM": []
+  },
+  "Cutout": {
+    "NetInclude": [],
+    "NetClip": [
+      "GND",
+      "VSS"
+    ],
+    "KeepOtherNets": false,
+    "KeepPowerNet": false,
+    "Enable": true,
+    "CutExpansion": "1mm",
+    "SubProjectName": null
+  },
+  "BackDrill": {
+    "Nets": [],
+    "Stub": "8mil"
+  },
+  "Ports": {
+    "PortOnNets": [],
+    "OrderPorts": {
+      "CompOrder": null,
+      "NetOrder": null,
+      "PortOrder": null
+    },
+    "SolderBall": {
+      "Default": [
+        "Auto",
+        "Auto"
+      ],
+      "Ratio": [
+        0.7,
+        0.7
+      ]
+    },
+    "PortOnRLC": false,
+    "IgnoreComponent": [],
+    "IgnorePart": [],
+    "PortZ0": [
+      "Signal:50",
+      "Power:0.1"
+    ]
+  },
+  "Analysis": {
+    "Cores": 4,
+    "Setup": {
+      "Name": "hfssSetup1",
+      "SolutionType": "HFSS",
+      "Options": {
+        "AdaptiveFrequency": "5Ghz",
+        "MaxPasses": 20,
+        "Order": "Mixed",
+        "DeltaS": 0.02
+      },
+      "Sweep": {
+        "Name": "sweep1",
+        "Options": {
+          "SweepType": "Interpolating",
+          "InterpolatingTolerance": 0.02,
+          "SweepData": "LIN 0GHz 20GHz 0.01GHz"
+        }
+      }
+    }
+  },
+  "Post": {
+    "SnpName": "test1",
+    "SnpDir": null,
+    "ExportSNP": true,
+    "ExportProfile": true,
+    "ExportConvergence": true
+  }
+}

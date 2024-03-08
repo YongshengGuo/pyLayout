@@ -668,8 +668,9 @@ class Layout(object):
         if not edbOutPath:
             edbOutPath = layoutPath[:-4] + ".aedb"
         if not controlFile:
-            controlFile = ""
-        cmd = "AnsTranslator {input} {output} -c={controlFileName}".format(input=layoutPath,output=edbOutPath,controlFileName=controlFile)
+            cmd = "anstranslator {input} {output}".format(input=layoutPath,output=edbOutPath)
+        else:
+            cmd = "anstranslator {input} {output} -c={controlFileName}".format(input=layoutPath,output=edbOutPath,controlFileName=controlFile)
         os.system(cmd)
         
         return edbOutPath
@@ -721,6 +722,9 @@ class Layout(object):
         if os.path.exists(aedtPath):
             self.openAedt(aedtPath)
             return
+        
+        if not os.path.exists(path):
+            log.exception("EDB file not exist: %s"%path)
             
         log.info("load edb : %s"%path)
         oTool = self.oDesktop.GetTool("ImportExport")

@@ -23,7 +23,7 @@ from .lib.layoutOptions import options
 # from .lib.common import log
 from .pyLayout import Layout
 
-version = "V0.61 20240201"
+version = "V0.61 20240308"
 log.info("pyLayout Version: %s"%version)
 log.setLogLevel(logLevel="INFO")
 # log.setLogLevel(logLevel="DEBUG")

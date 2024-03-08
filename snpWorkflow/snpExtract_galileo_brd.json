@@ -1,0 +1,162 @@
+{
+  "Header": {
+    "Version": 0.1,
+    "Date": 20230330,
+    "UserID": "xxx",
+    "Comment": "Comment",
+    "ProjectName": "None"
+  },
+  "AEDT": {
+    "Version": null
+  },
+  "Import": {
+    "LayoutPath": "C:\\work\\Project\\AE\\Script\\brd_test\\Galileo.brd",
+    "EdbOutPath": "C:\\work\\Project\\AE\\Script\\brd_test\\Galileo_brd7.aedb"
+  },
+  "Stackup": {
+    "Matrials": {
+      "M4_resin": {
+        "DK": 3.7,
+        "DF": 0.015
+      }
+    },
+    "Layers": [
+      {
+        "Type": "dielectric",
+        "Thickness": "1.9mil",
+        "DK": 3.7,
+        "DF": 0.015
+      },
+      {
+        "Name": "Top",
+        "Type": "conductor",
+        "Material": "copper",
+        "Thickness": "1.2mil",
+        "Roughness": "0.5um",
+        "DK": 3.7,
+        "DF": 0.015
+      },
+      {
+        "Type": "dielectric",
+        "Material": "M4",
+        "Thickness": "3.8mil",
+        "DK": 3.8,
+        "DF": 0.008
+      },
+      {
+        "Name": "Top",
+        "Type": "conductor",
+        "Material": "copper",
+        "Thickness": "1.2mil",
+        "Roughness": "0.5um",
+        "FillMaterial": "M4_resin"
+      },
+      {
+        "Type": "dielectric",
+        "Material": "M4",
+        "Thickness": "5.1mil",
+        "DK": 3.8,
+        "DF": 0.008
+      },
+      {
+        "Name": "Top",
+        "Type": "conductor",
+        "Material": "copper",
+        "Thickness": "1.2mil",
+        "Roughness": "0.5um",
+        "FillMaterial": "M4_resin"
+      },
+      {
+        "Type": "dielectric",
+        "Material": "M4",
+        "Thickness": "20.2mil",
+        "DK": 3.8,
+        "DF": 0.008
+      },
+      {
+        "Name": "Top",
+        "Type": "conductor",
+        "Material": "copper",
+        "Thickness": "1.2mil",
+        "Roughness": "0.5um",
+        "FillMaterial": "M4_resin"
+      },
+      {
+        "Type": "dielectric",
+        "Material": "M4",
+        "Thickness": "5.1mil",
+        "DK": 3.8,
+        "DF": 0.008
+      },
+      {
+        "Name": "Top",
+        "Type": "conductor",
+        "Material": "copper",
+        "Thickness": "1.2mil",
+        "Roughness": "0.5um",
+        "FillMaterial": "M4_resin"
+      },
+      {
+        "Type": "dielectric",
+        "Material": "M4",
+        "Thickness": "3.8mil",
+        "DK": 3.8,
+        "DF": 0.008
+      },
+      {
+        "Name": "Top",
+        "Type": "conductor",
+        "Material": "copper",
+        "Thickness": "1.2mil",
+        "Roughness": "0.5um",
+        "DK": 3.7,
+        "DF": 0.015
+      },
+      {
+        "Type": "dielectric",
+        "Thickness": "1.9mil",
+        "DK": 3.7,
+        "DF": 0.015
+      }
+    ]
+  },
+  "Cutout": {
+    "KeepPowerNet": false,
+    "Enable": true,
+    "CutExpansion": "2mm",
+    "SubProjectName": "galileo_pcie.aedt"
+  },
+  "Ports": {
+    "PortOnNets": [
+      "M_DQ<5>",
+      "M_DQ<6>"
+    ]
+  },
+  "Analysis": {
+    "Cores": 4,
+    "Setup": {
+      "Name": "hfssSetup1",
+      "SolutionType": "HFSS",
+      "Options": {
+        "AdaptiveFrequency": "1Ghz",
+        "Order": "Mixed",
+        "DeltaS": 0.02
+      },
+      "Sweep": {
+        "Name": "sweep1",
+        "Options": {
+          "UseQ3DForDC": false,
+          "SweepType": "Interpolating",
+          "InterpolatingTolerance": 0.02,
+          "SweepData": "LIN 0GHz 5GHz 0.01GHz"
+        }
+      }
+    }
+  },
+  "Post": {
+    "SnpName": "test1",
+    "ExportSNP": true,
+    "ExportProfile": true,
+    "ExportConvergence": true
+  }
+}
