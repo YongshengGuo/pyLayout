@@ -1,7 +1,6 @@
 #--- coding:utf-8
-#--- @Author: Yongsheng.Guo@ansys.com
+#--- @Author: Yongsheng.Guo@ansys.com, Henry.he@ansys.com,Yang.zhao@ansys.com
 #--- @Time: 2023-04-09
-
 '''
 PyLayout对象代表AEDT中的一个Design对象，即一块PCB的对象，可以通过PyLayout对象对PCB上的器件，网络，图形，求解设定，结果数据进行访问。
 
@@ -38,34 +37,42 @@ Examples：
 
 '''
 
-import clr
 import os,sys,re
 import shutil
 import time
 
 from .lib.desktop import initializeDesktop,releaseDesktop
-# from .lib.translator import Translator
-from .lib.component import Components
-from .lib.pin import Pins
-from .lib.net import Nets
+
+#---Primitive
+from .lib.Primitives.component import Components
+from .lib.Primitives.pin import Pins
+from .lib.Primitives.port import Ports
+from .lib.Primitives.line import Lines
+from .lib.Primitives.via import Vias
+
+#---library
+from .lib.library.padStack import PadStacks
+from .lib.library.componentLib import ComponentDefs
+from .lib.library.material import Materials
+#---natural
 from .lib.layer import Layers
-from .lib.material import Materials
-from .lib.variable import Variables
 from .lib.setup import Setups
-from .lib.solution import Solutions
-from .lib.port import Ports
-from .lib.line import Lines
-from .lib.via import Vias
-from .lib.shape import Shapes
-from .lib.complexDict import ComplexDict
-from .lib.geometry import Point,Polygen
-from .lib.padStack import PadStacks
+from .lib.net import Nets
+from .lib.variable import Variables
+from .lib.post.solution import Solutions
+
+from .lib.common.complexDict import ComplexDict
+from .lib.common.arrayStruct import ArrayStruct
+
 from .lib.layoutOptions import options
 
-##log is a globle variable
-from .lib.common import log
+from .lib.Primitives.primitive import Primitives
+from .lib.Primitives.geometry import Polygen,Point
 
-isIronpython = "IronPython" in sys.version
+#log is a globle variable
+# from .lib.common.common import *
+from .lib.common.common import log,isIronpython
+from .lib.common.unit import Unit
 
 class Layout(object):
     '''
@@ -79,6 +86,10 @@ class Layout(object):
         "Comps":"Components"
         }
     
+    #FindObjects 
+    groupList = ['pin', 'via', 'rect','circle', 'arc', 'line', 'poly','plg', 'circle void','line void', 'rect void', 
+           'poly void', 'plg void', 'text', 'cell','Measurement', 'Port', 'component', 'CS', 'S3D', 'ViaGroup']
+    
 
     def __init__(self, version=None, installDir=None,usePyAedt=False):
         '''
@@ -90,7 +101,7 @@ class Layout(object):
             >>> PyLayout()
             open least version AEDT, return PyLayout
 
-            >>> PyLayout(version = "Ansoft.ElectronicsDesktop.2013.1")
+            >>> PyLayout(version = "2013.1")
             open AEDT 2013R1, return PyLayout
         
         '''
@@ -100,34 +111,35 @@ class Layout(object):
             "UsePyAedt":usePyAedt,
             "PyAedtApp":None,
             "pyAedt":None,
-            "ProjectDir":None,
-            "ProjectName":None,
-            "DesignName":None,
-            "ProjectPath":None,
-            "EdbPath":None,
-            "ResultsPath":None,
-            
-            "Components":None,
-            "Pins":None,
-            "Nets":None,
-            "Layers":None,
-            "Lines":None,
-            "Vias":None,
-            "Shapes":None,
-            "Materials":None,
-            "Variables":None,
-            "Log":None,
-            "Version":None,
-            "Setups":None,
-            "Ports":None,
-            "Solutions":None,
-            "Config":None
-            },maps=self.__class__.maps)
+#             "ProjectDir":None,
+#             "ProjectName":None,
+#             "DesignName":None,
+#             "ProjectPath":None,
+#             "EdbPath":None,
+#             "ResultsPath":None,
+#             
+#             "Components":None,
+#             "Pins":None,
+#             "Nets":None,
+#             "Layers":None,
+#             "Lines":None,
+#             "Vias":None,
+#             "Shapes":None,
+#             "Materials":None,
+#             "Variables":None,
+#             "Log":None,
+#             "Version":None,
+#             "Setups":None,
+#             "Ports":None,
+#             "Solutions":None,
+#             "Config":None
+            },maps=self.maps)
         
         self._info.update("Version", version)
         self._info.update("InstallDir", installDir)
         self._info.update("Log", log)
         self._info.update("options",options)
+        self._info.update("Maps", self.maps)
         
         if not isIronpython and self._info["UsePyAedt"] == None:
             log.info("In cpython environment, UsePyAedt will set to True default. You could set it to False manually.")
@@ -159,36 +171,28 @@ class Layout(object):
         
     def __getitem__(self, key):
         
-#        Process is terminated due to StackOverflowException.
-#         if not self._oEditor:
-#             log.info("Try to intial Project.")
-#             self.initDesign()
-
         if not isinstance(key, str):
             log.exception("key for layout must be str: %s"%key)
         
-        flag = False
-        try:
-            return self._info[key]
-        except:
-            
-#             if not isinstance(key, str):
-#                 log.exception("key for layout must be str: %s"%key)
-            
-            if not self._oDesign:
-                log.exception("layout should be intial use 'Layouot.initDesign(projectName = None,designName = None)'")
-#             self.initDesign()
-            
-            log.debug("try to get element type: %s"%key)
-            for ele in ["Components","Ports","Nets","Layers","Materials","Pins","Setups","Lines","Vias","Shapes","Variables"]:
-                if key in self[ele]:
-                    log.debug("Try to return %s for key: %s"%(ele,key))
-                    return self[ele][key]
-            flag = True
-            
-        if flag:
-            log.exception("not found element on layout: %s"%key)
         
+        
+        if key in self._info:
+            return self._info[key]
+        
+        if not self._oDesign:
+            log.exception("layout should be intial use 'Layouot.initDesign(projectName = None,designName = None)'")
+            return
+        
+        log.debug("try to get element type: %s"%key)
+        
+        for ele in self.groupList:
+            collection = ele+"s"
+            if key in self._info[collection]:
+                log.debug("Try to return %s for key: %s"%(collection,key))
+                return self._info[collection][key]
+            
+        log.exception("not found element on layout: %s"%key)
+        return None
         
     def __setitem__(self, key,value):
         self._info[key] = value
@@ -257,61 +261,6 @@ class Layout(object):
         return self._oDesktop
     
     
-    @property
-    def oProject(self):
-        if not self._oProject:
-            log.info("Try to intial Project to get oDesign.")
-            self.initDesign()
-#             self.initLayout()
-        return self._oProject
-    
-    @property
-    def oDesign(self):
-        if not self._oDesign:
-            log.info("Try to intial Project to get oDesign.")
-            self.initDesign()
-#             self.initLayout()
-        return self._oDesign
-    
-    @property
-    def oEditor(self):
-        if not self._oEditor:
-            self._oEditor = self.oDesign.SetActiveEditor("Layout") 
-        return self._oEditor
-
-    @property
-    def Components(self):
-        return self._info["Components"]
- 
-    @property
-    def Pins(self):
-        return self._info["Pins"]
- 
-    @property
-    def Nets(self):
-        return self._info["Nets"]
-
-    @property
-    def Layers(self):
-        return self._info["Layers"]
-     
-    @property
-    def Materials(self):
-        return self._info["Materials"]
- 
-    @property
-    def Variables(self):
-        return self._info["Variables"]
-
-    @property
-    def Setups(self):
-        return self._info["Setups"]
-
-    @property
-    def Solutions(self):
-        return self._info["Solutions"]
-
-    
     def initDesign(self,projectName = None,designName = None, initLayout = True):
         '''Try to intial project properties.
         
@@ -339,6 +288,10 @@ class Layout(object):
         
 #         log.debug("AEDT:"+self.Version)
         projectList = oDesktop.GetProjects()
+        #for COM Compatibility, yongsheng guo #20240422
+        if "ComObject" in str(type(projectList)):
+            projectList = [projectList[i] for i in range(projectList.count)]
+            
         if len(projectList)<1:
 #             log.error("Must have one project opened in aedt.")
 #             exit()
@@ -367,6 +320,8 @@ class Layout(object):
             log.error("Must have one project opened in aedt.")
             raise Exception("Must have one project opened in aedt.")
         
+        self._info.update("oProject",self._oProject)
+        
         designList = self.getDesignNames()
         if len(designList)<1:
 #             log.error("Must have one design opened in project.")
@@ -391,34 +346,16 @@ class Layout(object):
         if designtype != 'HFSS 3D Layout Design':
             log.error("design type error, not 3D layout design.")
 
+        self._info.update("oDesign",self._oDesign)
+        self._info.update("oEditor",self._oDesign.SetActiveEditor("Layout"))
             
-#         self._oEditor = self._oDesign.SetActiveEditor("Layout") 
-        self.projectName = self._oProject.GetName()
-        self.projectDir = self._oProject.GetPath()
-        self.designName = self.getDesignName(self._oDesign)
+        self._info.update("ProjectName", self._oProject.GetName())
+        self._info.update("DesignName", self.getDesignName(self._oDesign))
+        self._info.update("projectDir", self._oProject.GetPath())
         
-        log.info("init design: %s : %s"%(self.projectName,self.designName))
-        
-        #intial layout elements
-        self.enableICMode(False)
-        if initLayout:
-            self.initLayout()
-
-    def initLayout(self):
-        
-        info = self._info
-        #intial log
-        path = os.path.join(self.projectDir,"%s_%s.log"%(self.projectName,self.designName))
-        log.setPath(path)
-        log.info("Simulation log recorded in: %s"%path)
-
-        #path
-        info.update("ProjectPath", os.path.join(self.projectDir,self.projectName+".aedt"))
-        info.update("EdbPath", os.path.join(self.projectDir,self.projectName+".aedb"))
-        info.update("ResultsPath", os.path.join(self.projectDir,self.projectName+".aedtresults"))
-        
-        info.update("ProjectName", self.projectName)
-        info.update("DesignName", self.designName)
+        self._info.update("ProjectPath", os.path.join(self._info.projectDir,self._info.projectName+".aedt"))
+        self._info.update("EdbPath", os.path.join(self._info.projectDir,self._info.projectName+".aedb"))
+        self._info.update("ResultsPath", os.path.join(self._info.projectDir,self._info.projectName+".aedtresults"))
         
         #Veraion C:\Program Files\AnsysEM\v231\Win64
         if self.version==None and self.installDir:
@@ -427,26 +364,47 @@ class Layout(object):
             ver2 = ver1.replace(".","")[-3:]
             self.version = "20%s.%s"%(ver2[0:2],ver2[2])
         
-        info.update("oDesktop", self.oDesktop)
-        info.update("oProject", self.oProject)
-        info.update("oDesign", self.oDesign)
-        info.update("oEditor", self.oEditor)
-        info.update("Maps", self.maps)
         
-        info.update("Components", Components(layout = self))
-        info.update("Pins", Pins(layout = self))
-        info.update("Nets", Nets(layout = self))
+        #intial log
+        path = os.path.join(self._info.projectDir,"%s_%s.log"%(self._info.projectName,self._info.designName))
+        log.setPath(path)
+        log.info("Simulation log recorded in: %s"%path)
+        
+        log.info("init design: %s : %s"%(self.projectName,self.designName))
+        
+        #intial layout elements
+        self.enableICMode(False)
+        
+        if initLayout:
+            self.initLayout()
+
+    def initLayout(self):
+        
+        info = self._info
+
+        classDict = ComplexDict(dict([(name.lower(),obj) for name,obj in globals().items() if isinstance(obj,type)]))
+        
+        for obj in self.groupList:
+            key = obj.lower()+"s"
+            if key.replace(" ","") in classDict:
+                info.update(key,classDict[key](layout = self))
+            else:
+                info.update(key,Primitives(layout = self,type=obj))
+            
+            if " " in key:
+                self.maps.update({key.replace(" ",""):key})
+
+        
         info.update("Layers", Layers(layout = self))
         info.update("Materials", Materials(layout = self))
         info.update("Variables", Variables(layout = self))
-        info.update("Lines", Lines(layout = self))
-        info.update("Vias", Vias(layout = self))
-        info.update("Shapes", Shapes(layout = self))
         info.update("Setups", Setups(layout = self))
-        info.update("Ports", Ports(layout = self))
+        info.update("Nets", Nets(layout = self))
         info.update("Solutions", Solutions(layout = self))
         info.update("PadStacks", PadStacks(layout = self))
+        info.update("ComponentDefs", ComponentDefs(layout = self))
         
+#         info.update("Primitives",Primitives(layout = self))
         info.update("unit",self.oEditor.GetActiveUnits())
         
         #intial geometry definition
@@ -457,7 +415,7 @@ class Layout(object):
         return oDesign.GetName().split(';')[-1]
     
     def getDesignNames(self):
-        return [name.split(';')[-1] for name in self.oProject.GetTopDesignList()]  
+        return [name.split(';')[-1] for name in self._oProject.GetTopDesignList()]  
                 
     #--- design
         
@@ -553,19 +511,21 @@ class Layout(object):
         self.oEditor.GenerateSuggestedHFSSRegions()
 
     def enableICMode(self,flag=True):
-        if flag:
-            self.oDesign.DesignOptions(
-                [
-                    "NAME:options",
-                    "ModeOption:="        , "IC mode"
-                ], 0)
-        else:
-            self.oDesign.DesignOptions(
-                [
-                    "NAME:options",
-                    "ModeOption:="        , "General mode"
-                ], 0)
-            
+        try:
+            if flag:
+                self.oDesign.DesignOptions(
+                    [
+                        "NAME:options",
+                        "ModeOption:="        , "IC mode"
+                    ], 0)
+            else:
+                self.oDesign.DesignOptions(
+                    [
+                        "NAME:options",
+                        "ModeOption:="        , "General mode"
+                    ], 0)
+        except:
+            log.error("enableICMode error: %s"%str(flag))
             
     def enableAutosave(self,flag=True):
         Enabled = self.oDesktop.GetAutoSaveEnabled()
@@ -574,9 +534,9 @@ class Layout(object):
             return Enabled
         
         if flag:
-            oDesktop.EnableAutoSave(True)
+            self.oDesktop.EnableAutoSave(True)
         else:
-            oDesktop.EnableAutoSave(False)
+            self.oDesktop.EnableAutoSave(False)
         
         return Enabled
 
@@ -590,6 +550,34 @@ class Layout(object):
         'Port Instance Port', 'Edge Port', 'component', 'CS', 'S3D', 'ViaGroup'
         '''
         return self.layout.oEditor.FindObjects('Type',type)
+    
+    def getObjectsBySquare(self,center,layer="*",sideLength="1mil"):
+        '''
+        suggest to use getObjectByPoint
+        '''
+        return self.getObjectByPoint(center, layer, sideLength)
+         
+        
+    def getObjectByPoint(self,point,layer="*",radius=0):
+        
+        if len(point)!=2:
+            log.exception("center must be list with length 2")
+            
+        X,Y = [Unit(p).V for p in point]
+        
+        if radius == 0:
+            posObj = self.oEditor.FindObjectsByPoint(self.oEditor.Point().Set(X, Y), layer)
+            return list(posObj)
+        
+        else:
+            l = Unit(radius).V
+            p0 = self.oEditor.Point().Set(X-l/2, Y-l/2)
+            p1 = self.oEditor.Point().Set(X+l/2, Y-l/2)
+            p2 = self.oEditor.Point().Set(X+l/2, Y+l/2)
+            p3 = self.oEditor.Point().Set(X-l/2, Y+l/2)
+            box = self.oEditor.Polygon().AddPoint(p0).AddPoint(p1).AddPoint(p2).AddPoint(p3).SetClosed(True)
+            posObj = self.oEditor.FindObjectsByPolygon(box, layer)
+            return list(posObj)
         
     def setUnit(self, unit = "um"):
         #return old unit
@@ -597,7 +585,7 @@ class Layout(object):
     
     def getUnit(self):
         return self.oEditor.GetActiveUnits()
-    #--functions
+    #---functions
 
     
     #--- IO
