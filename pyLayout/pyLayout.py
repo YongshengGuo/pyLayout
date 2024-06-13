@@ -41,38 +41,38 @@ import os,sys,re
 import shutil
 import time
 
-from .lib.desktop import initializeDesktop,releaseDesktop
+from .desktop import initializeDesktop,releaseDesktop
 
 #---Primitive
-from .lib.Primitives.component import Components
-from .lib.Primitives.pin import Pins
-from .lib.Primitives.port import Ports
-from .lib.Primitives.line import Lines
-from .lib.Primitives.via import Vias
+from .Primitives.component import Components
+from .Primitives.pin import Pins
+from .Primitives.port import Ports
+from .Primitives.line import Lines
+from .Primitives.via import Vias
 
 #---library
-from .lib.library.padStack import PadStacks
-from .lib.library.componentLib import ComponentDefs
-from .lib.library.material import Materials
+from .definition.padStack import PadStacks
+from .definition.componentLib import ComponentDefs
+from .definition.material import Materials
 #---natural
-from .lib.layer import Layers
-from .lib.setup import Setups
-from .lib.net import Nets
-from .lib.variable import Variables
-from .lib.post.solution import Solutions
+from .definition.layer import Layers
+from .definition.setup import Setups
+from .definition.net import Nets
+from .definition.variable import Variables
+from .post.solution import Solutions
 
-from .lib.common.complexDict import ComplexDict
-from .lib.common.arrayStruct import ArrayStruct
+from .common.complexDict import ComplexDict
+from .common.arrayStruct import ArrayStruct
 
-from .lib.layoutOptions import options
+from .layoutOptions import options
 
-from .lib.Primitives.primitive import Primitives
-from .lib.Primitives.geometry import Polygen,Point
+from .Primitives.primitive import Primitives,Objects3DL
+from .Primitives.geometry import Polygen,Point
 
 #log is a globle variable
-# from .lib.common.common import *
-from .lib.common.common import log,isIronpython
-from .lib.common.unit import Unit
+# from .common.common import *
+from .common.common import log,isIronpython
+from .common.unit import Unit
 
 class Layout(object):
     '''
@@ -87,7 +87,7 @@ class Layout(object):
         }
     
     #FindObjects 
-    groupList = ['pin', 'via', 'rect','circle', 'arc', 'line', 'poly','plg', 'circle void','line void', 'rect void', 
+    objTypes = ['pin', 'via', 'rect','circle', 'arc', 'line', 'poly','plg', 'circle void','line void', 'rect void', 
            'poly void', 'plg void', 'text', 'cell','Measurement', 'Port', 'component', 'CS', 'S3D', 'ViaGroup']
     
 
@@ -185,7 +185,7 @@ class Layout(object):
         
         log.debug("try to get element type: %s"%key)
         
-        for ele in self.groupList:
+        for ele in self.objTypes:
             collection = ele+"s"
             if key in self._info[collection]:
                 log.debug("Try to return %s for key: %s"%(collection,key))
@@ -381,10 +381,11 @@ class Layout(object):
     def initLayout(self):
         
         info = self._info
-
+        
+        #for Primitives
         classDict = ComplexDict(dict([(name.lower(),obj) for name,obj in globals().items() if isinstance(obj,type)]))
         
-        for obj in self.groupList:
+        for obj in self.objTypes:
             key = obj.lower()+"s"
             if key.replace(" ","") in classDict:
                 info.update(key,classDict[key](layout = self))
@@ -394,6 +395,14 @@ class Layout(object):
             if " " in key:
                 self.maps.update({key.replace(" ",""):key})
 
+        #for collections
+#         info.update("Objects", Objects3DL(layout = self,types=".*"))
+        info.update("Traces", Objects3DL(layout = self,types=['arc', 'line']))
+        info.update("Shapes", Objects3DL(layout = self,types=[ 'rect','poly','plg']))
+        info.update("Voids", Objects3DL(layout = self,types=['circle void', 'line void', 'rect void', 'poly void', 'plg void']))
+        
+        
+        
         
         info.update("Layers", Layers(layout = self))
         info.update("Materials", Materials(layout = self))
