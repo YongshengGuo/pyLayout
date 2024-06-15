@@ -76,18 +76,6 @@ def initializeDesktop(version=None, installDir=None):
         else:
             pass
         
-#         #add 20230814 support pyaedt
-#         if not isIronpython:
-#             try:
-#                 global app
-#                 app = launch_desktop(specified_version = version,new_desktop_session = False)
-#                 Module = sys.modules['__main__']
-#                 return getattr(Module, "oDesktop")
-#                 
-#             except:
-#                 log.debug("pyaedt intial error.")
-            
-        
         try:
             log.info("Intial aedt desktop %s"%version)
             AnsoftCOMUtil = __import__("Ansys.Ansoft.CoreCOMScripting")

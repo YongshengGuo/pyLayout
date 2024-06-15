@@ -437,8 +437,8 @@ class Nets(object):
     def autoRLCnet(self,on = "C"):
         for each in on:
             if "r" == each.lower():
-                reg = "E.*"
-                tail = "_E"
+                reg = "R.*"
+                tail = "_R"
             elif "l" == each.lower():
                 reg = "L.*"
                 tail = "_L"
@@ -449,10 +449,12 @@ class Nets(object):
                 continue
             
             comps = self.layout.Components[reg]
+            
+            
             pwrNets = self.PowerNetNames
             i = 0
             for comp in comps:
-    #             print(compName,len(self.queryInfo(refdes = compName,out=['pin'])))
+#                 print("Process component: %s"%comp.Name)
                 i += 1
                 if len(comp.Pins) != 2:
                     continue

@@ -299,14 +299,17 @@ class Primitives(object):
         if isinstance(key, str):
             if key in self.ObjectDict:
                 return self.ObjectDict[key]
-            else:
+            elif re.match(r".*[\*\.\?\+\{\}\|].*",key,re.I): #正则表达式
                 #find by 正则表达式
                 lst = [name for name in self.ObjectDict.Keys if re.match(r"^%s$"%key,name,re.I)]
                 if not lst:
-                    raise Exception("not found component: %s"%key)
+                    return []
+#                     raise Exception("not found component: %s"%key)
                 else:
                     #如果找到多个器件（正则表达式），返回列表
                     return self[lst]
+            else:
+                raise Exception("not found component: %s"%key)
 
         if isinstance(key, (list,tuple,Iterable)):
             return [self[i] for i in list(key)]
