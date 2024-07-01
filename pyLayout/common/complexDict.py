@@ -152,7 +152,7 @@ def setDictData(key,value,dict1, ignorCase = True, enableUpdate = False):
             if enableUpdate:
                 dict1[key] = value
             else:
-                raise Exception("options key error: %s"%str(key))
+                raise Exception("key error: %s"%str(key))
             
         keyList = list(filter(lambda k:k.strip(),re.split(r"[\\/]", key,maxsplit = 1)))
         return setDictData(keyList,value,dict1)
@@ -175,7 +175,7 @@ def setDictData(key,value,dict1, ignorCase = True, enableUpdate = False):
                 if enableUpdate:
                     temp[key] = value
                 else:
-                    raise Exception("options key error: %s"%str(key))
+                    raise Exception("key error: %s"%str(key))
             if isinstance(temp, (list,tuple)):
                 temp[int(key2)] = value
             else:
@@ -183,7 +183,7 @@ def setDictData(key,value,dict1, ignorCase = True, enableUpdate = False):
                 temp[key2] = value
 
     else:
-        raise Exception("options key error: %s"%str(key))
+        raise Exception("key error: %s"%str(key))
 
 def delDictKey(key,dict1,ignorCase = True):
     
@@ -198,7 +198,7 @@ def delDictKey(key,dict1,ignorCase = True):
             return
         
         if not re.findall(r"[\\/]",key):
-            raise Exception("options key error: %s"%str(key))
+            raise Exception("key error: %s"%str(key))
             
         keyList = list(filter(lambda k:k.strip(),re.split(r"[\\/]", key,maxsplit = 1)))
         return delDictKey(keyList,dict1)
@@ -218,7 +218,7 @@ def delDictKey(key,dict1,ignorCase = True):
 #                 temp = self[key1]
             temp = getDictData(key1,dict1,default = "//key_not_found//")
             if temp ==  "//key_not_found//":
-                raise Exception("options key error: %s"%str(key))
+                raise Exception("key error: %s"%str(key))
             if isinstance(temp, (list,tuple)):
                 del temp[int(key2)]
             else:
@@ -226,7 +226,7 @@ def delDictKey(key,dict1,ignorCase = True):
                 del temp[key2]
 
     else:
-        raise Exception("options key error: %s"%str(key))
+        raise Exception("key error: %s"%str(key))
     
 
 class ComplexDict(object): 
@@ -371,6 +371,22 @@ class ComplexDict(object):
         return self._dict.values()
     
     @property
+    def Keys(self):
+        '''
+        Returns:
+            dict: the options in dict format
+        '''
+        return self._dict.keys()
+    
+    @property
+    def Items(self):
+        '''
+        Returns:
+            dict: the options in dict format
+        '''
+        return self._dict.items()
+    
+    @property
     def Count(self):
         '''
         Returns:
@@ -385,15 +401,6 @@ class ComplexDict(object):
             dict: the options in dict format
         '''
         return self._dict
-    
-    @property
-    def Keys(self):
-        '''
-        Returns:
-            dict: the options in dict format
-        '''
-        return self._dict.keys()
-        
     
     def updates(self,options):
         '''
@@ -541,7 +548,7 @@ class ComplexDict(object):
 #         if self.enableUpdate:
 #             setDictData(key,value,self._dict,enableUpdate=True)
 # 
-#         raise Exception("options key error: %s"%str(key))
+#         raise Exception("key error: %s"%str(key))
     
     
     def getMappingKeys(self,key):
@@ -589,7 +596,12 @@ class ComplexDict(object):
                     
     def copy(self):
         return self.__class__(deepcopy(self.Dict))
-
+    
+    
+    def writeJosn(self,path):
+        writeJson(path,self._dict)
+    
+    
     @classmethod
     def loadConfig(cls,config):
         if isinstance(config, str):
@@ -604,4 +616,4 @@ class ComplexDict(object):
         
         else:
             raise Exception("loadConfig: config must be path,dict or ComplexDict. %s"%str(config))
-        
+    

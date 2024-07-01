@@ -423,7 +423,7 @@ class Setup(object):
 #             for obj in net.getConnectedObjs():
 #                 netInfo.update({obj:net.name})
         
-        from .Model3D.HFSS import HFSS
+        from ..model3D.HFSS import HFSS
         hfss = HFSS()
         hfss.openAedt(path)
         unit = hfss.getUnit()

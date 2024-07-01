@@ -16,6 +16,8 @@ Examples:
     打开版本 AEDT 2013R1
 
 '''
+
+
 import clr
 import os,sys,re
 from .common.common import log
@@ -23,7 +25,7 @@ from .common.common import log
 
 isIronpython = "IronPython" in sys.version
 
-def initializeDesktop(version=None, installDir=None):
+def initializeDesktop(version=None, installDir=None, nonGraphical = False):
     '''
     initializeDesktop'''
     #"2021.1"
@@ -62,11 +64,12 @@ def initializeDesktop(version=None, installDir=None):
         else:
             raise ValueError("Do not found the install version %s" % version)
         
-    sys.path.append(aedtInstallDir)
+    sys.path.insert(0,aedtInstallDir)
+    sys.path.insert(0,os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin'))
     clr.AddReference("Ansys.Ansoft.DesktopPlugin")
     clr.AddReference("Ansys.Ansoft.CoreCOMScripting")
     clr.AddReference("Ansys.Ansoft.PluginCoreDotNet")
-    sys.path.append(os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin'))
+    
     if not oDesktop:
         # set version from aedtInstallDir
         if version == None:
@@ -78,20 +81,45 @@ def initializeDesktop(version=None, installDir=None):
         
         try:
             log.info("Intial aedt desktop %s"%version)
-            AnsoftCOMUtil = __import__("Ansys.Ansoft.CoreCOMScripting")
-            #COMUtil = AnsoftCOMUtil.Ansoft.CoreCOMScripting.Util.COMUtil
-            StandalonePyScriptWrapper = AnsoftCOMUtil.Ansoft.CoreCOMScripting.COM.StandalonePyScriptWrapper
-            if "Ansoft.ElectronicsDesktop" not in version:
-                version = "Ansoft.ElectronicsDesktop." + version
-            log.debug(version)
+            
+#             #both for ironpython and python, not work
+#             AnsoftCOMUtil = __import__("Ansys.Ansoft.CoreCOMScripting")
+#             #COMUtil = AnsoftCOMUtil.Ansoft.CoreCOMScripting.Util.COMUtil
+#             StandalonePyScriptWrapper = AnsoftCOMUtil.Ansoft.CoreCOMScripting.COM.StandalonePyScriptWrapper
+#             if "Ansoft.ElectronicsDesktop" not in version:
+#                 version = "Ansoft.ElectronicsDesktop." + version
+#             log.debug(version)
+#             if nonGraphical:
+#                 oAnsoftApp = StandalonePyScriptWrapper.CreateObjectNew(nonGraphical)
+#             else:
+#                 oAnsoftApp = StandalonePyScriptWrapper.CreateObject(version)
+#                  
+#             oDesktop = oAnsoftApp.GetAppDesktop()
+
             if isIronpython:
-                oAnsoftApp = StandalonePyScriptWrapper.CreateObject(version)
+                AnsoftCOMUtil = __import__("Ansys.Ansoft.CoreCOMScripting")
+                #COMUtil = AnsoftCOMUtil.Ansoft.CoreCOMScripting.Util.COMUtil
+                StandalonePyScriptWrapper = AnsoftCOMUtil.Ansoft.CoreCOMScripting.COM.StandalonePyScriptWrapper
+                if "Ansoft.ElectronicsDesktop" not in version:
+                    version = "Ansoft.ElectronicsDesktop." + version
+                log.debug(version)
+                if nonGraphical:
+                    oAnsoftApp = StandalonePyScriptWrapper.CreateObjectNew(nonGraphical)
+                else:
+                    oAnsoftApp = StandalonePyScriptWrapper.CreateObject(version)
+                      
                 oDesktop = oAnsoftApp.GetAppDesktop()
             else:
-                log.debug("Intial AEDT from python win32com")
-                import win32com.client  # @UnresolvedImport
-                oAnsoftApp = win32com.client.Dispatch(version)
-                oDesktop = oAnsoftApp.GetAppDesktop()
+                if nonGraphical:
+                    #only for version last then 2024R1
+                    import PyDesktopPlugin
+                    oAnsoftApp = PyDesktopPlugin.CreateAedtApplication(NGmode=nonGraphical,alwaysNew = True)
+                    oDesktop = oAnsoftApp.GetAppDesktop()
+                else:
+                    log.debug("Intial AEDT from python win32com")
+                    import win32com.client  # @UnresolvedImport
+                    oAnsoftApp = win32com.client.Dispatch(version)
+                    oDesktop = oAnsoftApp.GetAppDesktop()
         except:
             log.debug("error initialize Desktop")
             oDesktop = None

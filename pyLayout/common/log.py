@@ -84,7 +84,7 @@ class Log(object):
         
         if self.file_handler:
             self.file_handler.close()
-            self.logger.removeHandler(self.file_handler )
+            self.logger.removeHandler(self.file_handler)
             
         self.file_handler = logging.FileHandler(logPath,mode='a')
         self.logger.addHandler(self.file_handler)
@@ -137,7 +137,6 @@ class Log(object):
     def exception(self,content,*args):
         if isinstance(content, str):
             content = Exception(content+",".join(args))
-            
             self.logger.exception(content)
             raise content
 

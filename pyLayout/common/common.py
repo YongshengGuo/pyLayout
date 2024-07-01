@@ -33,15 +33,18 @@ def readData(path):
         list: 返回文件所有行
     '''
     with open(path,'r') as f:
-        data = f.readlines()
+        line = "readData" 
+        while(line):
+            line = f.readline()
+            yield line
         f.close()        
-    return data
+#     return data
 
 def writeData(data,path):
     '''写入文本文件
 
     Args:
-        data (list): 文本信息
+        data (list,str): 文本信息
         path (str): 文件路径，如果存在则被覆盖
     '''
     if isinstance(data, list):

@@ -393,7 +393,7 @@ class Nets(object):
         '''_summary_
 
         Args:
-            regNets (str,list): regular net
+            regNets (str,list): regular net. if space in regNets, will split to list.
             Signals: 需要保留的Signals, 支持多个信号，例如：“net1 net2”中间空格隔开，支持正则表达试，支持[7:0]总线写法”
 
 
@@ -402,7 +402,8 @@ class Nets(object):
         '''
         
         if type(regNets) == str:
-            regNets = [regNets]
+#             regNets = [regNets]
+            regNets = regNets.strip().split()
             
         #[7:0]
         nets = []
@@ -421,7 +422,7 @@ class Nets(object):
         nets = []
 
         for regNet in regNets:
-            regNet.replace("$","\$")
+            regNet = regNet.replace("$","\$").strip()
             nets += filter(lambda x: re.match(regNet+"$",x,re.IGNORECASE),self.NetNames)
         return nets
     
@@ -462,10 +463,10 @@ class Nets(object):
                 pnet,nnet = comp.NetNames
     
                 if pnet in pwrNets or nnet in pwrNets: 
-                    log.info("Component: %s, Pnet: %s, Nnet: %s %s"%(comp.Name,pnet,nnet,"................%s/%s"%(i,len(comps))))
+                    log.debug("Component: %s, Pnet: %s, Nnet: %s %s"%(comp.Name,pnet,nnet,"................%s/%s"%(i,len(comps))))
                     continue
                 
-                log.info("Component: %s, Pnet: %s, Nnet: %s %s"%(comp.Name,pnet,nnet,"................%s/%s"%(i,len(comps))))
+                log.debug("Component: %s, Pnet: %s, Nnet: %s %s"%(comp.Name,pnet,nnet,"................%s/%s"%(i,len(comps))))
                 
                 if re.match(r"^(N?\d+$)|(UNNAMED.*)|(\$.*)",pnet,re.I) and re.match(r"^N?[a-z0-9_]+[a-z]+",nnet,re.I): 
                     log.info(comp.Name+" Nets: "+ nnet + " " + pnet+ ": Rename "+ pnet + " to " + nnet+tail)
