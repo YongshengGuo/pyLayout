@@ -603,6 +603,29 @@ class Layout(object):
     def getUnit(self):
         return self.oEditor.GetActiveUnits()
     
+    def delete(self,objs):
+        '''
+        objs: names of delete objs
+        '''
+        if isinstance(objs, str):
+            objs = [objs]
+            
+        for name in objs:
+            try:
+                obj = self.Objects[name]
+                self[obj.Type+"s"].pop(name)
+            except:
+                log.warning("%s: delete error from layout."%name)
+                
+        self.oEditor.Delete(objs)
+        self.Objects.refresh()
+        self.Traces.refresh()
+        self.Shapes.refresh()
+        self.Voids.refresh()
+
+        
+
+    
     #---functions
 
     

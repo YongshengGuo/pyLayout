@@ -129,7 +129,7 @@ class Primitive(object):
         log.debug("parse primitive: %s"%self.name)
         self._info = ComplexDict()
         maps = self.maps
-        self._info.update("Name",self.name) #add name to Info
+#         self._info.update("Name",self.name) #add name to Info
         
         #--- for BaseElementTab peoperty
         properties = self.layout.oEditor.GetProperties("BaseElementTab",self.Name)
@@ -141,10 +141,30 @@ class Primitive(object):
                 
             if re.match(r"Pt(\d+|s)$",prop,re.IGNORECASE): 
                 self._info.update("Pts",None)
+        
+        #change 20240703
+        self._info.update("Name",self.name) #add name to Info, override name Properties
+        
+        #for Polygon Object
+        self.maps.update({"Polygon":{
+            "Key":"name", #should use name, not Name
+            "Get":lambda k: self.layout.oEditor.GetPolygon(k)
+            }})
+        
+        #for Polygon Object
+        self.maps.update({"Area":{
+            "Key":"name",
+            "Get":lambda k: self.__area(k)
+            }})
+        
   
         self._info.setMaps(maps)
         self.parsed = True
 
+
+    def __area(self,name):
+        polygon = self.layout.oEditor.GetPolygon(self.name)
+        return polygon.Area() if polygon else None
 
     def get(self,key):
         '''
@@ -273,7 +293,7 @@ class Primitive(object):
 
     def delete(self):
         self.layout.oEditor.Delete([self.Name])
-        self.layout.Shapes.pop(self.Name)
+        self.layout[self.Type+"s"].pop(self.Name)
 
     def update(self):
         self._info = None #delay update
@@ -511,3 +531,7 @@ class Objects3DL(Primitives):
                 self._objectDict._dict.update(objs.ObjectDict._dict)
 
         return self._objectDict 
+    
+    
+    def refresh(self):
+        self._objectDict  = None

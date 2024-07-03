@@ -137,7 +137,7 @@ class Log(object):
     def exception(self,content,*args):
         if isinstance(content, str):
             content = Exception(content+",".join(args))
-            self.logger.exception(content)
+            self.logger.error(content)
             raise content
 
     #for debug
