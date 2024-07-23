@@ -23,6 +23,9 @@ log = logger(logLevel = "DEBUG")  #CRITICAL > ERROR > WARNING > INFO > DEBUG,
 
 isIronpython = "IronPython" in sys.version
 
+def reSubR(pattern, repl, string, count=0, flags=0):
+    return re.sub(pattern, repl, string[::-1],count,flags)[::-1]
+
 def readData(path):
     '''读取文本文件
 

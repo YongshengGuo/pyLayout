@@ -52,17 +52,19 @@ class Via(Primitive):
             return
         
         super(self.__class__,self).parse(force) #initial component properties
-        
+        maps = self.maps.copy()
         
         #add X,Y location property
-        self.maps.update({"X":{
+        maps.update({"X":{
             "Key":"Location",
             "Get":lambda v:v.X 
             }})
-        self.maps.update({"Y":{
+        maps.update({"Y":{
             "Key":"Location",
             "Get":lambda v:v.Y
             }})
+        
+        self._info.setMaps(maps)
 
 #         self._info.update("PadStack",self.layout.PadStacks[self._info["Padstack Definition"]])
 
@@ -104,7 +106,7 @@ class Via(Primitive):
         names = self.getConnectedObjs('pin')
         for name in names:
             pin = self.layout.pins[name]
-            if pin.isSMTPad(): layers.append(pin["Start Layer"])
+            if pin.isSMTPad: layers.append(pin["Start Layer"])
         
         if len(layers)<2: #small then two layers
             return

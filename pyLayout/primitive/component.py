@@ -84,6 +84,8 @@ class Component(Primitive):
         
         comp = self.name
         componentInfo = self.layout.oEditor.GetComponentInfo(comp)
+        maps = self.maps.copy()
+        
         for k,v in filter(lambda x:len(x)==2,[i.split("=",1) for i in componentInfo]):
             self._info.update(k,v)
             
@@ -91,29 +93,29 @@ class Component(Primitive):
         
         
         #pins information will update when they used by self[]
-        self.maps.update({"PinNames":{
+        maps.update({"PinNames":{
             "Key":"Name",
             "Get":lambda k:self.layout.oEditor.GetComponentPins(self.name)
             }})
         
         #pins objects
-        self.maps.update({"Pins":{
+        maps.update({"Pins":{
             "Key":"Name",
             "Get":lambda k:[self.layout.Pins[name] for name in self.layout.oEditor.GetComponentPins(self.name)]
             }})
         
         
-        self.maps.update({"NetNames":{
+        maps.update({"NetNames":{
             "Key":"Name",
             "Get":lambda k: list(set([self.layout.Pins[p].Net for p in self.layout.oEditor.GetComponentPins(self.name)]))
             }})
         
-        self.maps.update({"Nets":{
+        maps.update({"Nets":{
             "Key":"Name",
             "Get":lambda k: [self.layout.Nets[name] for name in set([self.layout.Pins[p].Net for p in self.layout.oEditor.GetComponentPins(self.name)])]
             }})
         
-        
+        self._info.setMaps(maps)
         self.parsed = True
 
 
@@ -346,7 +348,9 @@ class Component(Primitive):
         
 
     def createPortOnNets(self,nets):
-        
+        '''
+        create port on each pin of nets.
+        '''
         if isinstance(nets, str):
             nets = [nets]
             

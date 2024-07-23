@@ -78,6 +78,7 @@ class Pin(Primitive):
         super(self.__class__,self).parse(force) #initial component properties
         
         name = self.name
+        maps = self.maps.copy()
         names = re.split(r"[.-]+", name, maxsplit = 1)
         if len(names) <2:
 #                 log.exception("pinName pattern error: %s, should be like: U1-A1 or U1.A1"%pinName) 
@@ -97,11 +98,11 @@ class Pin(Primitive):
                 self._info.update(k,v)
         
         else:
-            self.maps.update({"X":{
+            maps.update({"X":{
                 "Key":"Location",
                 "Get":lambda v:v.X 
                 }})
-            self.maps.update({"Y":{
+            maps.update({"Y":{
                 "Key":"Location",
                 "Get":lambda v:v.Y
                 }})
@@ -110,10 +111,12 @@ class Pin(Primitive):
 #             self._info.update("Y",self._info.Location.Y)
             
         #pins information will update when they used by self[]
-        self.maps.update({"IsSMTPad":{
+        maps.update({"IsSMTPad":{
             "Key":"name",
             "Get":lambda k: self._info["Start Layer"] == self._info["Stop Layer"]
             }})
+        
+        self._info.setMaps(maps)
                 
     
     def getInscribedDiameter(self):

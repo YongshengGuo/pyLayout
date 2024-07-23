@@ -101,8 +101,8 @@ class Primitive(object):
     @property
     def Props(self):
         propKeys = list(self.Info.Keys)
-        if self.maps:
-            propKeys += list(self.maps.keys())
+        if self.Info.maps:
+            propKeys += list(self.Info.maps.keys())
         
         return propKeys
     
@@ -128,7 +128,7 @@ class Primitive(object):
         
         log.debug("parse primitive: %s"%self.name)
         self._info = ComplexDict()
-        maps = self.maps
+        maps = self.maps.copy()
 #         self._info.update("Name",self.name) #add name to Info
         
         #--- for BaseElementTab peoperty
@@ -144,20 +144,21 @@ class Primitive(object):
         
         #change 20240703
         self._info.update("Name",self.name) #add name to Info, override name Properties
+#         self._info.update("self", self)
         
         #for Polygon Object
-        self.maps.update({"Polygon":{
+        maps.update({"Polygon":{
             "Key":"name", #should use name, not Name
             "Get":lambda k: self.layout.oEditor.GetPolygon(k)
             }})
         
         #for Polygon Object
-        self.maps.update({"Area":{
+        maps.update({"Area":{
             "Key":"name",
             "Get":lambda k: self.__area(k)
             }})
         
-  
+        self.maps = maps
         self._info.setMaps(maps)
         self.parsed = True
 
@@ -205,21 +206,21 @@ class Primitive(object):
         if not isinstance(key, str): #key must string
             log.exception("Property error: %s->%s"%(self.name,str(key)))
         
-#         realKey = self._info.getReallyKey(key) #don't use mapkey
-        realKey = key  #don't use mapkey
+        realKey = self._info.getReallyKey(key) #don't use mapkey
+#         realKey = key  #don't use mapkey
            
-        if re.match(r"Pt(\d+|s)$",key,re.IGNORECASE) or key in ["Center","Pt A","Pt B","Location"]: 
-            self.setPoint(key, value)
+        if re.match(r"Pt(\d+|s)$",realKey,re.IGNORECASE) or realKey in ["Center","Pt A","Pt B","Location"]: 
+            self.setPoint(realKey, value)
             self.parsed = False #refresh
             
-        elif key in self._info.Properties: 
+        elif realKey in self._info.Properties: 
             self.setProp(realKey, value)
             self._info[realKey] = value
 #             self.parsed = False #refresh
             
         elif key in self._info:
             log.warning("Attribute values will not take effect in layout: %s:%s"%(key,value))
-            self._info[realKey] = value
+            self._info[key] = value
         
         else:
             log.exception("Property error: %s->%s"%(self.name,key))
@@ -359,6 +360,19 @@ class Primitives(object):
         return "%s Objects collection"%(self.type)
     
     @property
+    def oProject(self):
+        return self.layout.oProject
+    
+    @property
+    def oDesign(self):
+        return self.layout.oDesign
+
+    @property
+    def oEditor(self):
+        return self.layout.oEditor
+    
+    
+    @property
     def ObjectDict(self):
         '''
         FindObjects
@@ -377,6 +391,10 @@ class Primitives(object):
     @property
     def All(self):
         return self.ObjectDict.Values
+    
+    @property
+    def Count(self):
+        return len(self)
     
     @property
     def Type(self):
@@ -430,6 +448,7 @@ class Primitives(object):
         
         log.info("not found component: %s"%name)
         return None
+    
     def getUniqueName(self,prefix=""):
         
         if prefix == None:
@@ -443,6 +462,82 @@ class Primitives(object):
             else:
                 break
         return name
+    
+    #add Circle
+    
+
+    def addCircle(self,center,r,layerName):
+        '''
+        center:[x,y],"x,y", Point
+        r: 
+        '''
+        cpt = Point(center)
+        name = self.layout.oEditor.CreateCircle(
+            [
+                "NAME:Contents",
+                "circleGeometry:="    , 
+                    ["Name:=", "circle_0",
+                    "LayerName:=", self.layout.Layers[layerName].Name,
+                    "lw:=", "0",
+                    "x:=", cpt.X,
+                    "y:=", cpt.Y,
+                    "r:=", str(r)]
+            ])
+        
+        self.push(name)
+        return self[name]
+    
+    def addRectangle(self,ptA,ptB,layerName):
+        pt1 = Point(ptA)
+        pt2 = Point(ptB)
+        
+        self.layout.oEditor.CreateRectangle(
+            [
+                "NAME:Contents",
+                "rectGeometry:="    , 
+                ["Name:=", "rect_0",
+                 "LayerName:=", self.layout.Layers[layerName].Name,
+                 "lw:=", "0",
+                 "Ax:=", pt1.X,"Ay:=", pt1.Y,
+                 "Bx:=", pt2.X,"By:=", pt2.Y,
+                 "cr:=", "0mm","ang:=", "0deg"]
+            ])
+    
+    def addpolygon(self,points,layerName):
+        '''
+        points:list,tuple, Point
+        '''
+        if not points or len(points)<3:
+            log.exception("Points of polygon must have 3 points")
+            
+#         if not name:
+#             name = self.getUniqueName()
+            
+        pts = [Point(p) for p in points]
+        xyListTemp = []
+        for i in range(len(pts)):
+            xyListTemp.append("x:=")
+            xyListTemp.append(0)
+            xyListTemp.append("y:=")
+            xyListTemp.append(0)
+        
+        name = self.layout.oEditor.CreatePolygon(
+        [
+            "NAME:Contents",
+            "polyGeometry:=", 
+            ["Name:=", "poly_0",     
+            "LayerName:=", self.layout.Layers[layerName].Name,
+            "lw:=", "0","n:=", 6,
+            "U:=", self.layout.unit]  + xyListTemp
+    #         "x:=", -1,"y:=", -25,"x:=", -11,"y:=", -41,"x:=", -4,"y:=", -49,"x:=", 37,"y:=", -50,"x:=", 24,"y:=", -21,"x:=", 11,"y:=", -29,"x:=", -1,"y:=", -25]
+        ])
+        
+        self.push(name)
+        for i in range(len(pts)):
+            self[name]["Pt%s"%i] = pts[i]
+            
+        return self[name]
+    
     
 class Objects3DL(Primitives):
 
@@ -509,7 +604,7 @@ class Objects3DL(Primitives):
         
         objTypes = []
         for t in types:
-            for t2 in self.layout.objTypes:
+            for t2 in self.layout.primitiveTypes:
                 if re.match(r"^%s?$"%t,t2,re.I):
                     objTypes.append(t2)
             
