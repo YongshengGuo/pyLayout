@@ -40,7 +40,7 @@ class Aedt3DToolBase(object):
         "Ver":"Version",
         }
     
-    def __init__(self,toolType="HFSS", version=None, installDir=None,nonGraphical=False):
+    def __init__(self,toolType=None, version=None, installDir=None,nonGraphical=False):
         '''
         初始化PyLayout对象环境
         
@@ -244,9 +244,6 @@ class Aedt3DToolBase(object):
             projectList = [projectList[i] for i in range(projectList.count)]
             
         if len(projectList)<1:
-#             log.error("Must have one project opened in aedt.")
-#             exit()
-#             log.error("Must have one project opened in aedt.")
             log.warning("not found opened projects, insert new one.")
             oProject = oDesktop.NewProject()
             oProject.InsertDesign(self._toolType, "HFSSDesign1", "", "")
@@ -272,38 +269,8 @@ class Aedt3DToolBase(object):
             raise Exception("Must have one project opened in aedt.")
         
         self._info.update("oProject",self._oProject)
-        
-        designList = self._oProject.GetTopDesignList()
-        if len(designList)<1:
-#             log.error("Must have one design opened in project.")
-#             raise Exception("Must have one design opened in project.")
-            self._oProject.InsertDesign(self._toolType, "HFSSDesign1", "", "")
-            self._oDesign = self._oProject.SetActiveDesign(designName)
-        else:
-        
-            if designName:
-                if designName not in designList:
-                    log.error("design not in project.%s"%designName)
-                    raise Exception("design not in project.%s"%designName)
-                self._oDesign = self._oProject.SetActiveDesign(designName)
-            else:
-                self._oDesign = self._oProject.GetActiveDesign()
-                if not self._oDesign:
-                    log.info("try to get the first design")
-                    self._oDesign = self._oProject.SetActiveDesign(designList[0])
-                    
-        #make sure the design is 3DL
-        designtype = self._oDesign.GetDesignType()
-        if designtype != self._toolType:
-            log.error("design type error, not %s design."%self._toolType)
-
-        self._info.update("oDesign",self._oDesign)
-        self._info.update("oEditor",self._oDesign.SetActiveEditor("3D Modeler"))
-            
         self._info.update("ProjectName", self._oProject.GetName())
-        self._info.update("DesignName", self.getDesignName(self._oDesign))
         self._info.update("projectDir", self._oProject.GetPath())
-        
         self._info.update("ProjectPath", os.path.join(self._info.projectDir,self._info.projectName+".aedt"))
         self._info.update("EdbPath", os.path.join(self._info.projectDir,self._info.projectName+".aedb"))
         self._info.update("ResultsPath", os.path.join(self._info.projectDir,self._info.projectName+".aedtresults"))
@@ -311,42 +278,65 @@ class Aedt3DToolBase(object):
         self._info.update("Version", self.oDesktop.GetVersion())
         self._info.update("InstallDir", self.oDesktop.GetExeDir())
         
-        #Veraion C:\Program Files\AnsysEM\v231\Win64
-#         if self.version==None and self.installDir:
-#             splits = re.split(r"[\\/]+",self.installDir)
-#             ver1 = splits[-2] if splits[-1].strip() else splits[-3]
-#             ver2 = ver1.replace(".","")[-3:]
-#             self.version = "20%s.%s"%(ver2[0:2],ver2[2])
         
-#         #intial log
-#         path = os.path.join(self._info.projectDir,"%s_%s.log"%(self._info.projectName,self._info.designName))
-#         if self.UsePyAedt:
-#             import logging
-#             fileHandler = log.logger.logger.handlers[0]
-#             fileHandler2 = logging.FileHandler(path)
-#             fileHandler.stream = fileHandler2.stream
-#             fileHandler.baseFilename = path
-#             log.logger.logger.removeHandler(fileHandler)
-#             log.logger.logger.addHandler(fileHandler)
-#             del fileHandler2
-#             del fileHandler
-#             
-#         else:
-#             log.setPath(path)
-#             log.info("Simulation log recorded in: %s"%path)
-#         
-#         log.info("init design: %s : %s"%(self.projectName,self.designName))
         
+        #--- getDesignNames
+        designList = self._oProject.GetTopDesignList()
+        if len(designList)<1:
+            log.error("Must have one design opened in project.")
+            self._info.update("oDesign",None)
+            self._info.update("oEditor",None)
+            self._info.update("DesignName", "")
 
-#         log.info("init design: %s : %s"%(self.projectName,self.designName))
+        else:
         
-        #intial layout elements
-        if initObjects:
-            self.initObjects()
+            if designName:
+                if designName not in designList:
+                    log.error("design not in project.%s"%designName)
+                    raise Exception("design not in project.%s"%designName)
+#                 self._oDesign = self._oProject.SetActiveDesign(designName)
+            else:
+                self._oDesign = self._oProject.GetActiveDesign()
+                if not self._oDesign:
+                    log.info("try to get the first design")
+                    self._oDesign = self._oProject.SetActiveDesign(designList[0])
+                    
+                #make sure the design is 3DL
+                designtype = self._oDesign.GetDesignType()
+                if designtype != self._toolType:
+                    log.error("design type error,  %."% str(self.toolType))
+                
+                self._info.update("oDesign",self._oDesign)
+                self._info.update("DesignName", self.getDesignName(self._oDesign))
+                
+                if designtype == 'HFSS 3D Layout Design':
+                    self._info.update("oEditor",self._oDesign.SetActiveEditor("Layout"))
+                else:
+                    self._info.update("oEditor",self._oDesign.SetActiveEditor("3D Modeler"))
+                    
+#                 #intial log with design
+#                 path = os.path.join(self._info.projectDir,"%s_%s.log"%(self._info.projectName,self._info.designName))
+#                 if self.UsePyAedt or "AedtLogger" in str(type(log.logger)):
+#                     import logging
+#                     fileHandler = log.logger.logger.handlers[0]
+#                     fileHandler2 = logging.FileHandler(path)
+#                     fileHandler.stream = fileHandler2.stream
+#                     fileHandler.baseFilename = path
+#                     log.logger.logger.removeHandler(fileHandler)
+#                     log.logger.logger.addHandler(fileHandler)
+#                     del fileHandler2
+#                     del fileHandler
+#                     
+#                 else:
+#                     log.setPath(path)
+#                     log.info("Simulation log recorded in: %s"%path)
+#                 
+#                 log.info("init design: %s : %s"%(self.projectName,self.designName))
+        
+                #initObjects
+                if initObjects and designtype != 'HFSS 3D Layout Design':
+                    self.initObjects()
 
-
-#     def _getObjects(self,self2,name):
-#         return self2.oEditor.GetChildNames(name)
 
     def initObjects(self):
         

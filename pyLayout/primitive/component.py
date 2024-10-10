@@ -220,41 +220,70 @@ class Component(Primitive):
         self.layout.oEditor.ChangeProperty(ary.Array)
 
     
-    def updateRLCModel(self,**kwargs):
-        '''
-        {Name: R1, Part: RES_0402_100ohm, Type: Resistor, Model: filepath, RLC: [R,L,C]}
-        '''
-        info = ComplexDict(kwargs)       
-        
-        
-   
-    def updateModel(self,info):
-        '''
-        Args:
-            info(list): information of component in BOM
-       - {Name: R1, Part: RES_0402_100ohm, Type: Resistor, Model: filepath, RLC: [R,L,C]}
-
-        '''
-        Name = info['Name']
-        RLC = info['RLC']
-        Part = info['Part']
-        filepath = info['Model']
-        
-        if filepath:
-            fileType = os.path.splitext(file)[-1]
-            if fileType in ['.lib','.sp','.inc']:
-                #addSpiceModel
-                self.addSpiceModelforCom(Name,Part,filepath)
-        elif RLC:
-            #changeRLCValue
-            self.changeRLCValue(Name,RLC)
-        else:
-            pass
     
-    def changeRLCValue(self,comName,rlcValue,isParallel=True):
+    def addSnpModel(self,path):
+        
+        modelName = self.part
+        self.layout.modelDefs.addSnpModel(path,name=modelName)
+        self.layout.ComponentDefs.addSNPDef(modelName)
+        
+        self.layout.oEditor.ChangeProperty(
+            [
+                "NAME:AllTabs",
+                [
+                    "NAME:BaseElementTab",
+                    [
+                        "NAME:PropServers",  self.name
+                    ],
+                    [
+                        "NAME:ChangedProps",
+                        [
+                            "NAME:Model Info",
+                            "ExtraText:=", "",
+                            [
+                                "NAME:Model",
+                                "RLCProp:=", ["CompPropEnabled:=", True,"Pid:=", -1,"Pmo:=", "0","CompPropType:=", 0, 
+                                "PinPairRLC:=", ["RLCModelType:=", 1,    "NetRef:=", "GND",    "CosimDefintion:=", "NPort Model"]],
+                                "CompType:=", 3
+                            ]
+                        ]
+                    ]
+                ]
+            ])
+        
+        
+    def addSpiceModel(self,path):
+        modelName = self.part
+        self.layout.modelDefs.addSpiceModel(path,name=modelName)
+        self.layout.ComponentDefs.addSpiceDef(modelName)
+        
+        self.layout.oEditor.UpdateModels(
+            [
+                "NAME:ModelChanges",
+                [
+                    "NAME:UpdateModel0",
+                    [
+                        "NAME:ComponentNames", self.name
+                    ],
+                    "Prop:=", ["CompPropEnabled:=", True,"Pid:=", -1,"Pmo:=", "0","CompPropType:=", 0,
+                        "PinPairRLC:=", ["RLCModelType:=", 4,"SPICE_file_path:=", path,
+                        "SPICE_model_name:=", modelName,"SPICE_subckt:=", "GRM0115C1E6R6BE01","terminal_pin_map:=", ["Port1:=", "1","Port2:=", "2"]]]
+                ]
+            ])
+            
+    def addModel(self,path):
+        snp = path.split(".")[-1]
+        if re.match(r"s\d+p", snp,re.IGNORECASE):
+            self.addSnpModel(path)
+        else:
+            self.addSpiceModel(path)
+    
+    
+        
+    def updateRLCModel(self,R=None,L=None,C=None,parallel=False):
         '''
         Args:
-            rlcValue(list): RLC value [r,l,c]
+            rlc(list): RLC value [r,l,c]
             layerNum: the number of the component palcement layer (e.g. Top = 2 if slodermask exist)
         '''
         self.layout.oEditor.ChangeProperty(
@@ -263,8 +292,7 @@ class Component(Primitive):
                 [
                     "NAME:BaseElementTab",
                     [
-                        "NAME:PropServers", 
-                        comName
+                        "NAME:PropServers", self.name
                     ],
                     [
                         "NAME:ChangedProps",
@@ -279,73 +307,25 @@ class Component(Primitive):
                                               "PinPairRLC:=", ["RLCModelType:=", 0,                                
                                                                "ppr:="    , ["p1:=", "1",                                    
                                                                              "p2:=", "2",                                    
-                                                                             "rlc:=", ["r:=", str(rlcValue[0]),                                        
+                                                                             "rlc:=", ["r:=", str(R) if R else "0",                                        
                                                                                        "re:=", True,                                        
-                                                                                       "l:=", str(rlcValue[1]),                                        
+                                                                                       "l:=", str(L) if L else "0",                                      
                                                                                        "le:=", True,                                        
-                                                                                       "c:=", str(rlcValue[2]),                                        
+                                                                                       "c:=", str(C) if C else "0",                                    
                                                                                        "ce:=", True,                                        
-                                                                                       "p:=", isParallel,                                        
+                                                                                       "p:=", parallel,                                        
                                                                                      #"lyr:=", layerNum
                                                                                      ]
                                                                            ]
                                                                ]
                                               ],
-                                "CompType:="        , 1
+                                "CompType:="        , ["Resistor","Inductor","Capacitor"].index(self.Type)+1
                             ]
                         ]
                     ]
                 ]
             ])
 
-    def addSpiceModelforCom(self,comName,comPart,filePath):
-        sktName,node1,node2 = self.readSubcktNodes(filePath)
-        
-        oDefinitionManager = self.oProject.GetDefinitionManager()
-        oModelManager = oDefinitionManager.GetManager("Model")
-        oModelManager.Add(
-            [
-                "NAME:"+ comPart,
-                "Name:="        , comPart,
-                "ModTime:="        , 1684684528,
-                "Library:="        , "",
-                "LibLocation:="        , "Project",
-                "ModelType:="        , "dcirspice",
-                "Description:="        , "",
-                "ImageFile:="        , "",
-                "SymbolPinConfiguration:=", 0,
-                [
-                    "NAME:PortInfoBlk"
-                ],
-                [
-                    "NAME:PortOrderBlk"
-                ],
-                "filename:="        , filePath,
-                "modelname:="        , comPart
-            ])
-        oDesign = self.oProject.GetActiveDesign()
-        oEditor = oDesign.GetActiveEditor("Layout")
-        oEditor.UpdateModels(
-            [
-                "NAME:ModelChanges",
-                [
-                    "NAME:UpdateModel0",
-                    [
-                        "NAME:ComponentNames", 
-                        comName
-                    ],
-                    "Prop:="        , [    "CompPropEnabled:="    , True,
-                                        "Pid:=", -1,    
-                                        "Pmo:=", "0",
-                                        "CompPropType:=", 0,
-                                        "PinPairRLC:=", ["RLCModelType:=", 4,
-                                                         "SPICE_file_path:=", filePath,                    
-                                                         "SPICE_model_name:="    , comPart,                    
-                                                         "SPICE_subckt:="    , sktName,                    
-                                                         "terminal_pin_map:=", [node1 + ":=", "1",    node2 + ":=", "2"]]]
-                ]
-            ])
-        
 
     def createPortOnNets(self,nets):
         '''
@@ -502,6 +482,22 @@ class Components(Primitives):
             
         self.layout.oEditor.DissolveComponents(delComps)
         self.refresh()
+        
+    def deleteInvalidComponents(self,ConnectedNetsLessThen = 1):
+        '''
+        if component have only 1 pin, will delete
+        '''
+        delComps = []
+        for comp in self:
+            if len(comp.netnames)<=ConnectedNetsLessThen:
+                log.info("Remove invalid Component: %s, Net Count %s"%(comp.Name,len(comp.netnames)))
+                #comp.delete()
+#                 log.debug("delete invalid RLC: %s"%comp.Name)
+                delComps.append(comp.Name)
+            
+        self.layout.oEditor.DissolveComponents(delComps)
+        self.refresh()
+        
         
     def getUniqueName(self,prefix="U"):
         for i in range(1,10000):

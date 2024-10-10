@@ -1,13 +1,10 @@
 #--- coding=utf-8
 #--- @Author: Yongsheng.Guo@ansys.com, Henry.he@ansys.com,Yang.zhao@ansys.com
-#--- @Time: 20230410
+#--- @Time: 20240710
 
 
-'''_
-common.py模块主要用于存放一些常用的函数接口，比如加载json,csv,txt文件，查找文件等操作
-
-log is a global variable for log module, every module can import this variable to output log information.
-
+'''
+ProgressBar is used to show progress of for loop or function need long time cost
 '''
 from __future__ import print_function
 
@@ -128,7 +125,8 @@ class ProgressBar(object):
 #         thread.join()
         
     def stop(self):
-        self.event.set()
+        if self.event:
+            self.event.set()
         time.sleep(1) #wait for last log output
         print("{} finished.".format(self.prompt))
 

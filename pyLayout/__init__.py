@@ -27,6 +27,7 @@ from .model3D.icepak import Icepak
 ##log is a globle variable
 from .common.common import log,isIronpython
 from .common.progressBar import ProgressBar
+from .common.xlsReader import XlsReader
 
 from .pyLayout import Layout
 

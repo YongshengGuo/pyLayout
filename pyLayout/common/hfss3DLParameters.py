@@ -718,6 +718,7 @@ padStackData = [
     "ppl:=", []
 ]
 
+#--- component
 '''*** 
 solderBall array parameters'''
 solderBall =[
@@ -745,6 +746,7 @@ solderBall =[
                 ]
             ]
 
+
 '''*** 
 material array parameters'''
 material =     [
@@ -769,6 +771,93 @@ material =     [
     ]
 
 
+
+
+#--- model definiton
+model_snp =   [
+        "NAME:GRM31C5C3A102FWA4",
+        "Name:=", "GRM31C5C3A102FWA4",
+        "ModTime:=", 1725195413,
+        "Library:=", "",
+        "LibLocation:=", "Project",
+        "ModelType:=", "nport",
+        "Description:=", "",
+        "ImageFile:=", "",
+        "SymbolPinConfiguration:=", 0,
+        [
+            "NAME:PortInfoBlk"
+        ],
+        [
+            "NAME:PortOrderBlk"
+        ],
+        "filename:=", "$PROJECTDIR/GRM31C5C3A102FWA3.s2p",
+        "numberofports:=", 2,
+        "sssfilename:=", "",
+        "sssmodel:=", False,
+        "PortNames:=", ["Port1","Port2"],
+        "domain:=", "frequency",
+        "datamode:=", "Link",
+        "devicename:=", "",
+        "SolutionName:=", "",
+        "displayformat:=", "MagnitudePhase",
+        "datatype:=", "SMatrix",
+        [
+            "NAME:DesignerCustomization",
+            "DCOption:=", 0,
+            "InterpOption:=", 0,
+            "ExtrapOption:=", 1,
+            "Convolution:=", 0,
+            "Passivity:=", 0,
+            "Reciprocal:=", False,
+            "ModelOption:=", "",
+            "DataType:=", 1
+        ],
+        [
+            "NAME:NexximCustomization",
+            "DCOption:=", 3,
+            "InterpOption:=", 1,
+            "ExtrapOption:=", 3,
+            "Convolution:=", 0,
+            "Passivity:=", 0,
+            "Reciprocal:=", False,
+            "ModelOption:=", "",
+            "DataType:=", 2
+        ],
+        [
+            "NAME:HSpiceCustomization",
+            "DCOption:=", 1,
+            "InterpOption:=", 2,
+            "ExtrapOption:=", 3,
+            "Convolution:=", 0,
+            "Passivity:=", 0,
+            "Reciprocal:=", False,
+            "ModelOption:=", "",
+            "DataType:=", 3
+        ],
+        "NoiseModelOption:=", "External"
+    ]
+    
+    
+model_sp = [
+        "NAME:C2B2_model1",
+        "Name:=", "C2B2_model1",
+        "ModTime:=", 1725194749,
+        "Library:=", "",
+        "LibLocation:=", "Project",
+        "ModelType:=", "dcirspice",
+        "Description:=", "",
+        "ImageFile:=", "",
+        "SymbolPinConfiguration:=", 0,
+        [
+            "NAME:PortInfoBlk"
+        ],
+        [
+            "NAME:PortOrderBlk"
+        ],
+        "filename:=", "C:/work/Project/AE/Script/PSI/h_test/GRM0115C1E6R6BE01.mod",
+        "modelname:=", "C2B2_model1"
+    ]
+    
 '''*** 
 RLCModle array parameters'''
 RLCModle =    [
@@ -804,6 +893,5 @@ RLCModle =    [
             ]
         ]
     ]
-
 
 '''***'''

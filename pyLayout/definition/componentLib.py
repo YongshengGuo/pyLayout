@@ -26,6 +26,8 @@ class ComponentDef(Definition):
         self.update()
         self.layout.ComponentDefs.refresh()
         return
+    
+    
 
 class ComponentDefs(Definitions):
     
@@ -39,3 +41,43 @@ class ComponentDefs(Definitions):
         oComponentManager.Add(["NAME:%s"%name])
         self.push(name)
         
+    def addSNPDef(self,name):
+        #"CosimulatorType:=", 102 for spice model
+        oDefinitionManager = self.layout.oProject.GetDefinitionManager()
+        oComponentManager = oDefinitionManager.GetManager("Component")
+        
+        if name in self:
+            oComponentManager.Edit(["NAME:%s"%name,["NAME:CosimDefinitions",
+                ["NAME:CosimDefinition","CosimulatorType:=", 102,"CosimDefName:=", "Default",
+                 "IsDefinition:=", True,"Connect:=", True,"ModelDefinitionName:=", name],
+                "DefaultCosim:=", "Default"]])
+            self[name].refresh()
+            return self[name]
+        else:
+            oComponentManager.Add(["NAME:%s"%name,["NAME:CosimDefinitions",
+                ["NAME:CosimDefinition","CosimulatorType:=", 102,"CosimDefName:=", "Default",
+                 "IsDefinition:=", True,"Connect:=", True,"ModelDefinitionName:=", name],
+                "DefaultCosim:=", "Default"]])
+            
+            self.push(name)
+            return self[name]
+        
+    def addSpiceDef(self,name):
+        oDefinitionManager = self.layout.oProject.GetDefinitionManager()
+        oComponentManager = oDefinitionManager.GetManager("Component")
+        #"CosimulatorType:=", 112 for spice model
+        if name in self:
+            oComponentManager.Edit(["NAME:%s"%name,["NAME:CosimDefinitions",
+                ["NAME:CosimDefinition","CosimulatorType:=", 112,"CosimDefName:=", "Default",
+                 "IsDefinition:=", True,"Connect:=", True,"ModelDefinitionName:=", name],
+                "DefaultCosim:=", "Default"]])
+            self[name].refresh()
+            return self[name]
+        else:
+            oComponentManager.Add(["NAME:%s"%name,["NAME:CosimDefinitions",
+                ["NAME:CosimDefinition","CosimulatorType:=", 112,"CosimDefName:=", "Default",
+                 "IsDefinition:=", True,"Connect:=", True,"ModelDefinitionName:=", name],
+                "DefaultCosim:=", "Default"]])
+            self.push(name)
+            return self[name]
+            
