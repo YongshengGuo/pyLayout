@@ -106,7 +106,7 @@ class Port(Primitive):
         X = float(splits[0])
         Y = float(splits[1])
         layer = splits[-1]
-        posObjs = list(self.layout.getObjectByPoint([X,Y],layer = layer,radius="2mil"))
+        posObjs = list(self.layout.getObjectByPoint([X,Y],layer = layer,radius="20mil"))
 #         print(self.Name,posObjs,layer)
         
         if not posObjs:

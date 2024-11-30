@@ -8,8 +8,12 @@ used to get padstak information
 
 '''
 
+import os,re
 from .definition import Definitions,Definition
-
+from ..common.arrayStruct import ArrayStruct
+from ..common.complexDict import ComplexDict
+from ..common import hfss3DLParameters
+from ..common.common import log,tuple2list
 
 class ComponentDef(Definition):
     '''
@@ -41,43 +45,58 @@ class ComponentDefs(Definitions):
         oComponentManager.Add(["NAME:%s"%name])
         self.push(name)
         
-    def addSNPDef(self,name):
+#     def addSNPDef(self,path,name=None):
         #"CosimulatorType:=", 102 for spice model
+    def addSNPDef(self,modelName):
+#         if not name:
+#             name = os.path.split(path)[-1] 
+#         name = re.sub("[\.\s#]","_",name)
+        
         oDefinitionManager = self.layout.oProject.GetDefinitionManager()
         oComponentManager = oDefinitionManager.GetManager("Component")
         
-        if name in self:
-            oComponentManager.Edit(["NAME:%s"%name,["NAME:CosimDefinitions",
-                ["NAME:CosimDefinition","CosimulatorType:=", 102,"CosimDefName:=", "Default",
-                 "IsDefinition:=", True,"Connect:=", True,"ModelDefinitionName:=", name],
-                "DefaultCosim:=", "Default"]])
-            self[name].refresh()
-            return self[name]
+        ary = ArrayStruct(tuple2list(hfss3DLParameters.componentLib_snp)).copy()
+        ary.Array[0] = "NAME:%s"%modelName
+        ary.Info.DataSource = self.layout.ModelDefs[modelName].filename
+        ary.ModelDefName = modelName
+        ary.CosimDefinitions.CosimDefinition.CosimDefName = modelName
+        ary.CosimDefinitions.CosimDefinition.ModelDefinitionName = modelName
+        ary.CosimDefinitions.DefaultCosim = modelName
+          
+        if modelName in self.NameList:
+            oComponentManager.Edit(modelName,ary.Array)
         else:
-            oComponentManager.Add(["NAME:%s"%name,["NAME:CosimDefinitions",
-                ["NAME:CosimDefinition","CosimulatorType:=", 102,"CosimDefName:=", "Default",
-                 "IsDefinition:=", True,"Connect:=", True,"ModelDefinitionName:=", name],
-                "DefaultCosim:=", "Default"]])
-            
-            self.push(name)
-            return self[name]
+            oComponentManager.Add(ary.Array)
+            self.push(modelName)
+
+#         ary = ["NAME:%s"%modelName,["NAME:CosimDefinitions","ModelDefName:=", modelName,["NAME:CosimDefinition","CosimulatorType:=", 102,"CosimDefName:=", modelName,
+#                  "IsDefinition:=", True,"Connect:=", True,"ModelDefinitionName:=", modelName],
+#                 "DefaultCosim:=", "Default"]]
+#  
+#         if modelName in self.NameList:
+#             oComponentManager.Edit(modelName,ary)
+#         else:
+#             oComponentManager.Add(ary)
+#             self.push(modelName)
+        
+        self[modelName].parse()
+        return self[modelName]
         
     def addSpiceDef(self,name):
         oDefinitionManager = self.layout.oProject.GetDefinitionManager()
         oComponentManager = oDefinitionManager.GetManager("Component")
         #"CosimulatorType:=", 112 for spice model
-        if name in self:
-            oComponentManager.Edit(["NAME:%s"%name,["NAME:CosimDefinitions",
-                ["NAME:CosimDefinition","CosimulatorType:=", 112,"CosimDefName:=", "Default",
+        
+        ary = ["NAME:%s"%name,["NAME:CosimDefinitions",["NAME:CosimDefinition","CosimulatorType:=", 112,"CosimDefName:=", "Default",
                  "IsDefinition:=", True,"Connect:=", True,"ModelDefinitionName:=", name],
-                "DefaultCosim:=", "Default"]])
-            self[name].refresh()
-            return self[name]
+                "DefaultCosim:=", "Default"]]
+        if name in self.NameList:
+            oComponentManager.Edit(name,ary)
+
         else:
-            oComponentManager.Add(["NAME:%s"%name,["NAME:CosimDefinitions",
-                ["NAME:CosimDefinition","CosimulatorType:=", 112,"CosimDefName:=", "Default",
-                 "IsDefinition:=", True,"Connect:=", True,"ModelDefinitionName:=", name],
-                "DefaultCosim:=", "Default"]])
+            oComponentManager.Add(ary)
             self.push(name)
-            return self[name]
+        
+        self[name].parse()
+        return self[name]
             

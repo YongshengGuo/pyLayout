@@ -591,6 +591,8 @@ class Layers(Definitions):
             for i,v in enumerate(ConductorLayerNames):
                 maps.update({"C%s"%(i+1):v})
                 maps.update({"CB%s"%(count-i):v})
+                maps.update({"L%s"%(i+1):v})
+                maps.update({"LB%s"%(count-i):v})
 
             #short name for dielectric
             count = len(DielectricLayerNames)

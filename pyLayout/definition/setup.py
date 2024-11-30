@@ -451,7 +451,6 @@ class Setup(Definition):
                  
         bar.stop()
         q3d.groupbyNets(netInfo)
-                
         return q3d
     
     

@@ -37,10 +37,11 @@ from ..common.arrayStruct import ArrayStruct
 from ..common.complexDict import ComplexDict
 from ..common.unit import Unit
 from ..common.common import log
+from ..definition.spiceModel import Subckt
 
 from collections import Counter
 from .primitive import Primitive,Primitives
-
+from ..common.progressBar import ProgressBar
 
 class Component(Primitive):
     '''
@@ -96,6 +97,12 @@ class Component(Primitive):
         maps.update({"PinNames":{
             "Key":"self",
             "Get":lambda s:s.layout.oEditor.GetComponentPins(s.name)
+            }})
+        
+        #pins 
+        maps.update({"ShortPinNames":{
+            "Key":"self",
+            "Get":lambda s:[name.split("-")[-1] for name in s.layout.oEditor.GetComponentPins(s.name)]
             }})
         
         #pins objects
@@ -223,9 +230,32 @@ class Component(Primitive):
     
     def addSnpModel(self,path):
         
-        modelName = self.part
-        self.layout.modelDefs.addSnpModel(path,name=modelName)
-        self.layout.ComponentDefs.addSNPDef(modelName)
+        # model->ComponentDefs->Part
+        log.info("Add touchstone model to component '%s': %s"%(self.name,path))
+        modelName = self.part + "_" + os.path.basename(path)# + "_1"
+        modelName = re.sub("[\.\s#]","_",modelName) #replace illegal character
+        
+        relPath = self.layout.getRelPath(path)
+        
+        if modelName not in self.layout.modelDefs:
+            self.layout.modelDefs.addSnpModel(relPath,name=modelName)
+    #         self.layout.ComponentDefs.addSNPDef(modelName)
+            self.layout.ComponentDefs.addSNPDef(modelName)
+            
+            #AddSolverOnDemandModel
+            oDefinitionManager = self.layout.oProject.GetDefinitionManager()
+            oComponentManager = oDefinitionManager.GetManager("Component")
+            oComponentManager.AddSolverOnDemandModel(self.part, 
+                [
+                    "NAME:CosimDefinition",
+                    "CosimulatorType:="    , 102,
+                    "CosimDefName:="    , modelName,
+                    "IsDefinition:="    , True,
+                    "Connect:="        , True,
+                    "ModelDefinitionName:="   , modelName,
+                    "ShowRefPin2:="        , 2,
+                    "LenPropName:="        , ""
+                ])
         
         self.layout.oEditor.ChangeProperty(
             [
@@ -243,7 +273,7 @@ class Component(Primitive):
                             [
                                 "NAME:Model",
                                 "RLCProp:=", ["CompPropEnabled:=", True,"Pid:=", -1,"Pmo:=", "0","CompPropType:=", 0, 
-                                "PinPairRLC:=", ["RLCModelType:=", 1,    "NetRef:=", "GND",    "CosimDefintion:=", "NPort Model"]],
+                                "PinPairRLC:=", ["RLCModelType:=", 1,    "NetRef:=", "GND",    "CosimDefintion:=", modelName]],
                                 "CompType:=", 3
                             ]
                         ]
@@ -253,10 +283,26 @@ class Component(Primitive):
         
         
     def addSpiceModel(self,path):
-        modelName = self.part
-        self.layout.modelDefs.addSpiceModel(path,name=modelName)
-        self.layout.ComponentDefs.addSpiceDef(modelName)
         
+        log.info("Add spice model to component '%s': %s"%(self.name,path))
+        modelName = self.part + "_" + os.path.basename(path)
+        modelName = re.sub("[\.\s#]","_",modelName) #replace illegal character
+        
+        relPath = self.layout.getRelPath(path)
+#         if modelName not in self.layout.modelDefs:
+#             self.layout.modelDefs.addSpiceModel(path,name=modelName)
+#             self.layout.ComponentDefs.addSpiceDef(modelName)
+        
+        sp = Subckt(path)
+        pinNames = self.ShortPinNames
+        nodes = []
+        if len(sp.nodes) != len(pinNames):
+            log.exception("pin count not match with subckt node.")
+        
+        for i in range(len(sp.nodes)):
+            nodes.append("%s:="%sp.nodes[i])
+            nodes.append(pinNames[i])
+
         self.layout.oEditor.UpdateModels(
             [
                 "NAME:ModelChanges",
@@ -266,26 +312,32 @@ class Component(Primitive):
                         "NAME:ComponentNames", self.name
                     ],
                     "Prop:=", ["CompPropEnabled:=", True,"Pid:=", -1,"Pmo:=", "0","CompPropType:=", 0,
-                        "PinPairRLC:=", ["RLCModelType:=", 4,"SPICE_file_path:=", path,
-                        "SPICE_model_name:=", modelName,"SPICE_subckt:=", "GRM0115C1E6R6BE01","terminal_pin_map:=", ["Port1:=", "1","Port2:=", "2"]]]
+                        "PinPairRLC:=", ["RLCModelType:=", 4,"SPICE_file_path:=", relPath,
+                        "SPICE_model_name:=", modelName,"SPICE_subckt:=", sp.name,"terminal_pin_map:=", nodes]]
                 ]
             ])
             
-    def addModel(self,path):
-        snp = path.split(".")[-1]
-        if re.match(r"s\d+p", snp,re.IGNORECASE):
-            self.addSnpModel(path)
-        else:
-            self.addSpiceModel(path)
-    
-    
+    def addModel(self,path=None,R=None,L=None,C=None,parallel=False):
         
-    def updateRLCModel(self,R=None,L=None,C=None,parallel=False):
+        if path:
+            snp = path.split(".")[-1]
+            if re.match(r"s\d+p", snp,re.IGNORECASE):
+                self.addSnpModel(path)
+            else:
+                self.addSpiceModel(path)
+        elif R or L or C:
+            self.addRLCModel(R=R,L=L,C=C,parallel=parallel)
+        else:
+            log.exception("input model error for component: %s."%self.name)
+    
+    def addRLCModel(self,R=None,L=None,C=None,parallel=False):
         '''
         Args:
             rlc(list): RLC value [r,l,c]
             layerNum: the number of the component palcement layer (e.g. Top = 2 if slodermask exist)
         '''
+        
+        log.info("Add RLC model to component '%s': R:%s L:%s, C:%s"%(self.name,R,L,C))
         self.layout.oEditor.ChangeProperty(
             [
                 "NAME:AllTabs",
@@ -301,24 +353,20 @@ class Component(Primitive):
                             [
                                 "NAME:Model",
                                 "RLCProp:=", ["CompPropEnabled:=", True,                            
-                                              "Pid:=", 17,                            
-                                              "Pmo:=", "0",                            
-                                              "CompPropType:=", 0,                            
-                                              "PinPairRLC:=", ["RLCModelType:=", 0,                                
-                                                               "ppr:="    , ["p1:=", "1",                                    
-                                                                             "p2:=", "2",                                    
-                                                                             "rlc:=", ["r:=", str(R) if R else "0",                                        
-                                                                                       "re:=", True,                                        
-                                                                                       "l:=", str(L) if L else "0",                                      
-                                                                                       "le:=", True,                                        
-                                                                                       "c:=", str(C) if C else "0",                                    
-                                                                                       "ce:=", True,                                        
-                                                                                       "p:=", parallel,                                        
-                                                                                     #"lyr:=", layerNum
-                                                                                     ]
-                                                                           ]
-                                                               ]
-                                              ],
+                                "Pid:=", -1,                            
+                                "Pmo:=", "0",                            
+                                "CompPropType:=", 0,                            
+                                "PinPairRLC:=", ["RLCModelType:=", 0,                                
+                                 "ppr:="    , ["p1:=", "1","p2:=", "2","rlc:=", 
+                                    ["r:=", str(R) if R else "0",                                        
+                                     "re:=", True,                                        
+                                     "l:=", str(L) if L else "0",                                      
+                                     "le:=", True,                                        
+                                     "c:=", str(C) if C else "0",                                    
+                                     "ce:=", True,                                        
+                                     "p:=", parallel,                                        
+                                     #"lyr:=", layerNum
+                                    ]]]],
                                 "CompType:="        , ["Resistor","Inductor","Capacitor"].index(self.Type)+1
                             ]
                         ]
@@ -326,6 +374,41 @@ class Component(Primitive):
                 ]
             ])
 
+    def addLibraryModel(self,vendor=None,series=None,libraryPart=None,path=None):
+        
+        if path:
+            LibraryModelPath = path
+            LibraryModelPart = os.path.splitext(os.path.basename(path))[0]
+        elif vendor and  series and libraryPart:
+            LibraryModelPath = os.path.join(self.layout.installDir,"complib","Locked",self.PartType,vendor,series,"sdata.bin")
+            LibraryModelPart = libraryPart
+        
+        self.layout.oEditor.ChangeProperty(
+            [
+                "NAME:AllTabs",
+                [
+                    "NAME:BaseElementTab",
+                    [
+                        "NAME:PropServers", 
+                        self.name
+                    ],
+                    [
+                        "NAME:ChangedProps",
+                        [
+                            "NAME:Model Info",
+                            [
+                                "NAME:Model",
+                                "RLCProp:="        , ["CompPropEnabled:="    , True,"Pid:=", -1,"Pmo:=", "0","CompPropType:="    , 0,
+                                "PinPairRLC:="        , [    "RLCModelType:="    , 3,    "NetRef:="        , "GND",    
+                                "LibraryModelPath:="    , LibraryModelPath,    
+                                "LibraryModelPart:="    , LibraryModelPart,    "LibraryNominalValue:="    , 1E-12]],
+                                "CompType:="        , 3
+                            ]
+                        ]
+                    ]
+                ]
+            ])
+        
 
     def createPortOnNets(self,nets):
         '''
@@ -421,28 +504,28 @@ class Components(Primitives):
     def __init__(self,layout=None):
         super(self.__class__,self).__init__(layout, type="component",primitiveClass=Component)
     
-    def updateModels(self,modelList):
-        '''
-        Args:
-            modelList(list): information of component in BOM
-       - {Name: R1, Part: RES_0402_100ohm, Type: Resistor, Model: filepath, RLC: [R,L,C]}
-
-        '''
-        Name = modelList['Name']
-        RLC = modelList['RLC']
-        Part = modelList['Part']
-        filepath = modelList['Model']
-        
-        if filepath:
-            fileType = os.path.splitext(file)[-1]
-            if fileType in ['.lib','.sp','.inc']:
-                #addSpiceModel
-                self.addSpiceModelforCom(Name,Part,filepath)
-        elif RLC:
-            #changeRLCValue
-            self.changeRLCValue(Name,RLC)
-        else:
-            pass
+#     def updateModels(self,modelList):
+#         '''
+#         Args:
+#             modelList(list): information of component in BOM
+#        - {Name: R1, Part: RES_0402_100ohm, Type: Resistor, Model: filepath, RLC: [R,L,C]}
+# 
+#         '''
+#         Name = modelList['Name']
+#         RLC = modelList['RLC']
+#         Part = modelList['Part']
+#         filepath = modelList['Model']
+#         
+#         if filepath:
+#             fileType = os.path.splitext(file)[-1]
+#             if fileType in ['.lib','.sp','.inc']:
+#                 #addSpiceModel
+#                 self.addSpiceModelforCom(Name,Part,filepath)
+#         elif RLC:
+#             #changeRLCValue
+#             self.changeRLCValue(Name,RLC)
+#         else:
+#             pass
         
     def importBOM(self,csvfile):
         pass
@@ -494,8 +577,12 @@ class Components(Primitives):
                 #comp.delete()
 #                 log.debug("delete invalid RLC: %s"%comp.Name)
                 delComps.append(comp.Name)
-            
-        self.layout.oEditor.DissolveComponents(delComps)
+                
+        if not delComps:
+            return
+        
+#         self.layout.oEditor.DissolveComponents(delComps)
+        self.layout.oEditor.Delete(delComps) #oEditor.Delete(["R440", "R442", "R443"])
         self.refresh()
         
         
@@ -534,4 +621,65 @@ class Components(Primitives):
             ])        
         self.push(compName)
         return compName
+    
+    def updateModels(self,models):
+        #[{"RefDes":"","Part":"cap1","PartType":"Capacitor","FileName":null,"R":null,"L":null,"C":null,"Library":null}]
+        
+        #---model by Part
+        modelComponents = [m["RefDes"] for m in models]
+        flagByPart = True
+        for each in modelComponents:
+            if each:
+                flagByPart = False
+        
+        models2 = []
+        if flagByPart:
+            for each in models:
+                model = ComplexDict(each)
+                for c in self.getComponentsByPart(model.Part):
+                    model2 = model.copy()
+                    model2.RefDes = c.name
+                    models2.append(model2)
+            models = models2                            
+        
+        #---model by refdes
+        bar = ProgressBar(len(models),"Add component models:")
+        for each in models:
+            bar.showPercent()
+            #{"RefDes":"","Part":"cap1","PartType":"Capacitor","FileName":null,"R":null,"L":null,"C":null,"Library":null}
+            #RefDes,Part,PartType,FileName,Library,R,L,C
+            # model>library>rlc
+            model = ComplexDict(each)
+            refdes = model.Refdes
             
+            if refdes not in self:
+                log.info("Component %s not in layout, skip."%refdes)
+                continue
+            
+            comp = self[refdes]
+            #change part type
+            if model.PartType.lower() != comp.PartType.lower():
+                comp.changePartType(model.PartType)
+            
+            if model.FileName:
+                if not os.path.isabs(model.FileName):
+                    model.FileName = os.path.join(self.layout.ProjectDir,"Model",model.FileName)
+                comp.addModel(model.FileName)
+                
+            elif model.Library:
+                splits = re.split(r"[;,]", model.Library)
+                if len(splits) == 1:
+                    comp.addLibraryModel(path = splits[0])
+                elif len(splits)>2:
+                    comp.addLibraryModel(vendor = splits[0],series=splits[1],libraryPart=splits[2])
+                else:
+                    log.info("Library model error: %s"%model.Library)
+                    continue                  
+                
+            elif model.R or model.L or model.C:
+                comp.addModel(R=model.R,L=model.L,C=model.C)
+                
+            else:
+                log.info("model error: %s"%str(model))
+        
+        bar.stop()

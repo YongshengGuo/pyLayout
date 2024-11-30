@@ -96,7 +96,7 @@ class Layout(object):
     definitionTypes = ["Layer","Material","Setup","PadStack","ComponentDef","Variable","Net"]
     
 
-    def __init__(self, version=None, installDir=None,nonGraphical=False):
+    def __init__(self, version=None, installDir=None,nonGraphical=False,newDesktop=False):
         '''
         初始化PyLayout对象环境
         
@@ -118,6 +118,7 @@ class Layout(object):
         self._info.update("Version", version)
         self._info.update("InstallDir", installDir)
         self._info.update("NonGraphical", nonGraphical)
+        self._info.update("newDesktop", newDesktop)
         self._info.update("UsePyAedt", True)
         self._info.update("PyAedtApp", None)
         self._info.update("Log", log)
@@ -125,7 +126,7 @@ class Layout(object):
         self._info.update("Maps", self.maps)
         
         if not isIronpython:
-            log.info("In cpython environment, pyaedt shold be install, install command: pip install pyaedt")
+            log.info("In cpython environment, pyaedt shold be installed, install command: pip install pyaedt")
 #             self._info.update("UsePyAedt", True)
         
         #----- 3D Layout object
@@ -232,8 +233,8 @@ class Layout(object):
     def __initByPyaedt(self):    
         try:
             from pyaedt import launch_desktop
-            log.info("try to initial oDesktop using PyLayout Lib... ")
-            self.PyAedtApp = launch_desktop(version = self.version,non_graphical=self.NonGraphical,new_desktop = False,close_on_exit=False)
+            log.info("try to initial oDesktop using pyaedt Lib... ")
+            self.PyAedtApp = launch_desktop(version = self.version,non_graphical=self.NonGraphical,new_desktop = self.newDesktop,close_on_exit=False)
             self.UsePyAedt = True
             self._oDesktop = self.PyAedtApp.odesktop
             sys.modules["__main__"].oDesktop = self._oDesktop
@@ -265,14 +266,17 @@ class Layout(object):
                 self.UsePyAedt = bool(self.PyAedtApp) #may be lanuched from aedt internal
                 return oDesktop
         
+        if self.NonGraphical:
+            log.info("Will be intial oDesktop in nonGraphical mode.")
+        
         #try to intial by pyaedt
         if self.UsePyAedt:
             self.__initByPyaedt()
 
         #try to intial by internal method
         if self._oDesktop == None: 
-            log.info("try to initial oDesktop using  internal method... ")
-            self._oDesktop = initializeDesktop(self.version,self.installDir,nonGraphical=self.NonGraphical)
+            log.info("try to initial oDesktop using internal method... ")
+            self._oDesktop = initializeDesktop(self.version,self.installDir,nonGraphical=self.NonGraphical,newDesktop=self.newDesktop)
             self.installDir = self._oDesktop.GetExeDir()
             sys.modules["__main__"].oDesktop = self._oDesktop
             
@@ -333,12 +337,12 @@ class Layout(object):
          
         self._info.update("ProjectPath", os.path.join(self._info.projectDir,self._info.projectName+".aedt"))
         self._info.update("ResultsPath", os.path.join(self._info.projectDir,self._info.projectName+".aedtresults"))
+        self._info.update("EdbPath", os.path.join(self._info.projectDir,self._info.projectName+".aedb"))
  
         self._info.update("Version", self.oDesktop.GetVersion())
         self._info.update("InstallDir", self.oDesktop.GetExeDir())
         self._info.update("InstallPath", self.oDesktop.GetExeDir())
-        
-        
+    
     
     def initDesign(self,projectName = None,designName = None, initLayout = True):
         '''Try to intial project properties.
@@ -363,7 +367,6 @@ class Layout(object):
         self._oProject = None
         self._oDesign = None
         self._oEditor = None
-        oDesktop = self.oDesktop
         self.initProject(projectName)
         
 # #         log.debug("AEDT:"+self.Version)
@@ -637,8 +640,10 @@ class Layout(object):
             return Enabled
         
         if flag:
+            log.info("Enable autosave.")
             self.oDesktop.EnableAutoSave(True)
         else:
+            log.info("Disenable autosave.")
             self.oDesktop.EnableAutoSave(False)
         
         return Enabled
@@ -710,6 +715,16 @@ class Layout(object):
     
     def getUnit(self):
         return self.oEditor.GetActiveUnits()
+    
+    def select(self,objs):
+        '''
+        objs: names of  objs
+        '''
+        if isinstance(objs, str):
+            objs = [objs]
+            
+        self.oEditor.Select(objs)
+        
     
     def delete(self,objs):
         '''
@@ -853,6 +868,12 @@ class Layout(object):
             if not controlFile:
                 controlFile = ""
             self.importBrd(layoutPath,edbOutPath,controlFile)
+        elif layoutType.lower() == "odb++":
+            if not edbOutPath:
+                edbOutPath = layoutPath[:-4] + ".aedb"
+            if not controlFile:
+                controlFile = ""
+            self.importODB(layoutPath,edbOutPath,controlFile)
         else:
             raise Exception("Unknow layout type")
     
@@ -884,6 +905,12 @@ class Layout(object):
         oTool = self.oDesktop.GetTool("ImportExport")
         oTool.ImportExtracta(path, edbPath, controlFile)
         self.initDesign()
+        
+    def importODB(self,path,edbPath = None, controlFile = ""):
+        if edbPath == None:
+            edbPath = path[-3:]+"aedb"
+        oTool = self.oDesktop.GetTool("ImportExport")
+        oTool.ImportODB(path, edbPath, controlFile)
         
     def openAedt(self,path,unlock=False):
         if unlock:
@@ -933,7 +960,25 @@ class Layout(object):
     def save(self):
         log.info("Save project: %s"%self.ProjectPath)
         self.oProject.Save()
-
+    
+    def saveSiwave(self,path=None):
+        
+        if not path:
+            path = os.path.splitext(self.ProjectPath)[0]+".siw"
+        
+        execPath = os.path.join(self.ProjectDir, "SaveSiw.exec") 
+        with open(execPath,"w+") as f:
+            f.write("SaveSiw")
+            f.close()
+        cmd = '"{0}" {1} {2} -formatOutput'.format(os.path.join(self.InstallDir,"siwave_ng"),self.EdbPath,execPath)
+        log.info("Save project to Siwave: %s"%path)
+        with os.popen(cmd,"r") as output:
+            for line in output:
+                log.info(line)
+            output.close()
+        
+        return path
+    
     def close(self,save=True):
         if save:
             self.save()
@@ -1063,6 +1108,14 @@ class Layout(object):
         else:
             log.exception("Not running in batchmode")
     
+    def getRelPath(self,path):
+        
+        try:
+            relPath = os.path.relpath(path,self.ProjectDir)
+            return os.path.join("$PROJECTDIR",relPath)
+        except:
+            return path
+
     #---message  
 
     def message(self,msg,level = 0):
@@ -1084,6 +1137,20 @@ class Layout(object):
             gc.collect()
         except AttributeError:
             pass
+
+    @classmethod
+    def setClr(cls):
+        isIronpython = "IronPython" in sys.version
+        is_linux = "posix" in os.name
+        
+        if is_linux and not isIronpython:
+            try:
+                from ansys.aedt.core.generic.clr_module import _clr
+            except:
+                log.exception("pyaedt must be install: pip3 install pyaedt")
+        else:
+            import clr as _clr
+        return _clr
 
 #for test
 if __name__ == '__main__':

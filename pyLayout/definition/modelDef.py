@@ -42,43 +42,53 @@ class ModelDefs(Definitions):
 #         except:
 #             log.exception(r"not a vaild snp file: %s"%path)
             
-        if not name:
-            name = os.path.split(path)[-1] 
-        name = re.sub("[\.\s#]","_",name)
+#         if not name:
+#             name = os.path.split(path)[-1] 
+#             name = re.sub("[\.\s#]","_",name)
         
         oDefinitionManager = self.layout.oProject.GetDefinitionManager()
         oModelManager = oDefinitionManager.GetManager("Model")
         
-        if name in self:
-            oModelManager.EditWithComps (["NAME:%s"%name,"Name:=", name,"ModelType:=", "nport",
-                               "filename:=", path,"numberofports:=", ])
-            self[name].refresh()
-            return self[name]
+        ary = ArrayStruct(tuple2list(hfss3DLParameters.model_snp)).copy()
+        ary.Array[0] = "NAME:%s"%name
+        ary.Name = name
+        ary.ModelType = "nport"
+        ary.filename = path
+        ary.numberofports = 2
+        ary.PortNames = ["Port1","Port2"]
+ 
+        if name in self.NameList:
+#             oModelManager.Edit(name,ary.Array)
+            oModelManager.EditWithComps(name,ary.Array)
+#             self[name].update()
+#             return self[name]
         else:
-            oModelManager.Add(["NAME:%s"%name,"Name:=", name,"ModelType:=", "nport",
-                               "filename:=", path,"numberofports:=", ])
-            
+            oModelManager.Add(ary.Array)
             self.push(name)
-            return self[name]
+        
+        self[name].parse()    
+        return self[name]
         
     def addSpiceModel(self,path,name=None):
         
-        if not name:
-            name = os.path.split(path)[-1] 
-        name = re.sub("[\.\s#]","_",name)
+#         if not name:
+#             name = os.path.split(path)[-1] 
+#             name = re.sub("[\.\s#]","_",name)
         
         oDefinitionManager = self.layout.oProject.GetDefinitionManager()
         oModelManager = oDefinitionManager.GetManager("Model")
         
-        if name in self:
-            oModelManager.EditWithComps(["NAME:%s"%name,"Name:=", name,"ModelType:=", "dcirspice",
+        if name in self.NameList:
+            oModelManager.EditWithComps(name,["NAME:%s"%name,"Name:=", name,"ModelType:=", "dcirspice",
                                "filename:=", path,"modelname:=", name]) 
             
-            self[name].refresh()
-            return self[name]
+#             self[name].update()
+#             return self[name]
         else:
             oModelManager.Add(["NAME:%s"%name,"Name:=", name,"ModelType:=", "dcirspice",
                                "filename:=", path,"modelname:=", name]) 
             
             self.push(name)
-            return self[name]
+        
+        self[name].parse()
+        return self[name]

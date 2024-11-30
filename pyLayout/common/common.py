@@ -215,7 +215,17 @@ def findDictKey(key,dict1,ignorCase = True):
 #     log.debug("not found key value:%s"%key)
     return "//key_not_found//"
 
-    
+def splitList(list_collection, n):
+    """
+    将集合均分，每份n个元素
+    :param list_collection:
+    :param n:
+    :return:返回的结果为评分后的每份可迭代对象
+    """
+    for i in range(0, len(list_collection), n):
+        yield list_collection[i: i + n]
+
+
 def update2Dict(dict1,dict2,ignorCase = True):
     '''
     dict2 update to dict1, considered Multi-level dict keys
