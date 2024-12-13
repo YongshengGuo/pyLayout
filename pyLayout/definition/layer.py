@@ -238,9 +238,6 @@ class Layer(Definition):
             if info[key] == "false":
                 info[key] = False
 
-
-
-
         maps.update({"indexIntra":{
             "Key":"self",
             "Get":lambda s: s._getIndexIntra()
@@ -257,6 +254,24 @@ class Layer(Definition):
             "Get":lambda s:s._getObjects()
             }})
             
+        
+        #FillMaterial 'Type: dielectric'  'Type: signal'
+        maps.update({"DK":{
+            "Key":"self",
+            "Get":lambda s:s.layout.Materials[s.Material].DK if self.Type == "dielectric" else s.layout.Materials[s.FillMaterial].DK 
+            }})
+        
+        
+        maps.update({"DF":{
+            "Key":"self",
+            "Get":lambda s:s.layout.Materials[s.Material].DF if self.Type == "dielectric" else s.layout.Materials[s.FillMaterial].DF
+            }})
+        
+        maps.update({"Cond":{
+            "Key":"self",
+            "Get":lambda s:s.layout.Materials[s.Material].Cond
+            }})
+        
     
         if self._info:
             self._info.updates(info)
@@ -1100,9 +1115,9 @@ class Layers(Definitions):
             row.append(layer.name)
             row.append(layer.Type)
             row.append(layer.Thickness)
-            row.append("3.8")
-            row.append("0.01")
-            row.append("")
+            row.append(layer.DK)
+            row.append(layer.DF)
+            row.append(layer.Roughness if layer.Type == "signal" and layer.UseRoughness else "")
             layerList.append(row)
         
         writeCSV(csvPath,layerList,header=header)

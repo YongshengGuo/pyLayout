@@ -269,7 +269,37 @@ class Layout(object):
         if self.NonGraphical:
             log.info("Will be intial oDesktop in nonGraphical mode.")
         
+        
+#         try:
+#             aedtInstallDir = None
+#             if self.installDir:
+#                 aedtInstallDir = self.installDir
+#                 
+#             elif "ANSYSEM_ROOT" in os.environ:
+#                 aedtInstallDir = os.environ["ANSYSEM_ROOT"]
+#             else:
+#                 ANSYSEM_ROOTs = list(
+#                     filter(lambda x: "ANSYSEM_ROOT" in x, os.environ))
+#                 if ANSYSEM_ROOTs:
+#                     log.debug("Try to initialize Desktop in latest version")
+#                     ANSYSEM_ROOTs.sort(key=lambda x: x[-3:])
+#                     aedtInstallDir = ANSYSEM_ROOTs[-1]
+#             
+#             if aedtInstallDir: 
+#                 sys.path.insert(0,aedtInstallDir)
+#                 sys.path.insert(0,os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin'))
+#                 
+#                 #only for version last then 2024R1
+#                 import PyDesktopPlugin
+#                 oAnsoftApp = PyDesktopPlugin.CreateAedtApplication(NGmode=self.NonGraphical,alwaysNew = self.newDesktop)
+#                 self._oDesktop = oAnsoftApp.GetAppDesktop()
+#                 return self._oDesktop
+#         except:
+#             log.exception("Intial oDesktop by PyDesktopPlugin fail... ")
+
+        
         #try to intial by pyaedt
+#         self.UsePyAedt = False
         if self.UsePyAedt:
             self.__initByPyaedt()
 
@@ -279,6 +309,7 @@ class Layout(object):
             self._oDesktop = initializeDesktop(self.version,self.installDir,nonGraphical=self.NonGraphical,newDesktop=self.newDesktop)
             self.installDir = self._oDesktop.GetExeDir()
             sys.modules["__main__"].oDesktop = self._oDesktop
+            self.UsePyAedt = False
             
         #intial error
         if self._oDesktop == None: 
