@@ -256,18 +256,18 @@ class Layer(Definition):
             
         
         #FillMaterial 'Type: dielectric'  'Type: signal'
-        maps.update({"DK":{
+        maps.update({"LayerDK":{
             "Key":"self",
             "Get":lambda s:s.layout.Materials[s.Material].DK if self.Type == "dielectric" else s.layout.Materials[s.FillMaterial].DK 
             }})
         
         
-        maps.update({"DF":{
+        maps.update({"LayerDF":{
             "Key":"self",
             "Get":lambda s:s.layout.Materials[s.Material].DF if self.Type == "dielectric" else s.layout.Materials[s.FillMaterial].DF
             }})
         
-        maps.update({"Cond":{
+        maps.update({"LayerCond":{
             "Key":"self",
             "Get":lambda s:s.layout.Materials[s.Material].Cond
             }})
@@ -1115,8 +1115,8 @@ class Layers(Definitions):
             row.append(layer.name)
             row.append(layer.Type)
             row.append(layer.Thickness)
-            row.append(layer.DK)
-            row.append(layer.DF)
+            row.append(layer.LayerDK)
+            row.append(layer.LayerDF)
             row.append(layer.Roughness if layer.Type == "signal" and layer.UseRoughness else "")
             layerList.append(row)
         
