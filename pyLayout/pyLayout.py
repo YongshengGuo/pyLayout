@@ -319,8 +319,8 @@ class Layout(object):
             if projectName:
     #             messageBox("projectName&designName")
                 if projectName not in projectList:
-                    log.error("project not in aedt.%s"%projectName)
-                    raise Exception("project not in aedt.%s"%projectName)
+                    log.error("project not in aedt:%s"%projectName)
+                    raise Exception("project not in aedt: %s"%projectName)
                 self._oProject = oDesktop.SetActiveProject(projectName)
      
             else:
@@ -861,16 +861,19 @@ class Layout(object):
         oTool = self.oDesktop.GetTool("ImportExport")
         oTool.ImportExtracta(path, edbPath, controlFile)
         self.initDesign()
+#         self.initDesign(projectName=os.path.splitext(os.path.basename(path))[0])
         
     def importODB(self,path,edbPath = None, controlFile = ""):
         if edbPath == None:
             edbPath = path[-3:]+"aedb"
         oTool = self.oDesktop.GetTool("ImportExport")
         oTool.ImportODB(path, edbPath, controlFile)
+        self.initDesign()
+#         self.initDesign(projectName=os.path.splitext(os.path.basename(path))[0])
         
     def openAedt(self,path,unlock=False):
         if unlock:
-            if os.path.exists(path[-4:]+"lock"):
+            if os.path.exists(path+".lock"):
                 os.remove(path)
         
         log.info("OpenProject : %s"%path)

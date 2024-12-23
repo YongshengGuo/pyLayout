@@ -26,6 +26,7 @@ from .log import Log as logger
 log = logger(logLevel = "DEBUG")  #CRITICAL > ERROR > WARNING > INFO > DEBUG,
 
 isIronpython = "IronPython" in sys.version
+is_linux = "posix" in os.name
 
 def reSubR(pattern, repl, string, count=0, flags=0):
     return re.sub(pattern, repl, string[::-1],count,flags)[::-1]
