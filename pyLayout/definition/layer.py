@@ -401,7 +401,7 @@ class Layer(Definition):
                     layerDict["DF"] = 0
                 
                 #consider DK,df maybe not same with material in project, alway update #20240314
-                layerDict["FillMaterial"] = "DK%sDK%s"%(info["DK"],info["DF"])
+                layerDict["FillMaterial"] = "DK%sDF%s"%(info["DK"],info["DF"])
                 self.layout.Materials.add({"Name":info["FillMaterial"],
                                                   "DK": info["DK"],
                                                   "DF": info["DF"]
@@ -423,7 +423,7 @@ class Layer(Definition):
                     layerDict["DF"] = 0
 
                 #consider DK,df maybe not same with material in project, alway update #20240314
-                layerDict["Material"] = "DK%sDK%s"%(info["DK"],info["DF"])
+                layerDict["Material"] = "DK%sDF%s"%(info["DK"],info["DF"])
                 self.layout.Materials.add({"Name":info["Material"],
                                                   "DK": info["DK"],
                                                   "DF": info["DF"]
@@ -461,8 +461,8 @@ class Layer(Definition):
             log.exception("routhness input msut be as '0.5um' or '0.5um:2.9' or ['0.5um','0.5um','0.5um']")           
             
 
-    def offLayer(self,offset = 0, type = None):
-        if type in ["signal","conductor"]:
+    def offLayer(self,offset = 0, type = "signal"):
+        if type.lower() in ["signal","conductor"]:
             layerNames = self.layout.Layers.ConductorLayerNames
             idx = layerNames.index(self.Name)
             if idx+offset<0: #return bottom
@@ -472,7 +472,7 @@ class Layer(Definition):
             
             name = layerNames[idx+offset]
             return self.layout.Layers.DefinitionDict[name]
-        elif type == "dielectric":
+        elif type.lower() == "dielectric":
             layerNames = self.layout.Layers.DielectricLayerNames
             idx = layerNames.index(self.Name)
             
@@ -484,9 +484,9 @@ class Layer(Definition):
             name = layerNames[idx+offset]
             return self.layout.Layers.DefinitionDict[name]
         
-        elif type == None:
+        elif type == None or type.lower() == "all":
             layerNames = self.layout.Layers.LayerNames
-            
+            idx = layerNames.index(self.Name)
             if idx+offset<0: #return bottom
                 return self.layout.Layers["SB1"]
             if idx+offset>len(layerNames)-1: #return top
