@@ -26,6 +26,7 @@ from .log import Log as logger
 log = logger(logLevel = "DEBUG")  #CRITICAL > ERROR > WARNING > INFO > DEBUG,
 
 isIronpython = "IronPython" in sys.version
+isPython = not isIronpython
 is_linux = "posix" in os.name
 
 def reSubR(pattern, repl, string, count=0, flags=0):
@@ -40,11 +41,17 @@ def readData(path):
     Returns:
         list: 返回文件所有行
     '''
-    with open(path,'r') as f:
-        datas = f.read()
-        f.close()    
-        return datas    
-#     return data
+
+    with open(path, 'rb') as file:
+        # 读取文件内容，得到字节串
+        content = file.read()
+        file.close()
+        # 将字节串解码为 Unicode 字符串
+    try:
+        return content.decode("utf-8")
+    except:
+        return content.decode("ascii")
+
 
 def readlines(path):
     '''读取文本文件
@@ -55,12 +62,27 @@ def readlines(path):
     Returns:
         list: 返回文件所有行
     '''
-    with open(path,'r') as f:
-        line = "readData" 
-        while(line):
-            line = f.readline()
-            yield line
-        f.close()     
+#     with open(path,'r') as f:
+#         line = "readData" 
+#         while(line):
+#             line = f.readline()
+#             yield line
+#         f.close()     
+        
+    try:
+        with open(path, 'r') as file:
+            # 读取文件内容，得到字节串
+            line = "readData" 
+            while(line):
+                line = file.readline()
+                yield line 
+            file.close()
+
+
+    except:
+        print("文件读取错误")
+
+        
 
 def writeData(data,path):
     '''写入文本文件
@@ -74,6 +96,92 @@ def writeData(data,path):
     with open(path,'w+') as f:
         f.write(data)
         f.close()
+
+
+def readCfgFile(path):
+    '''读取简单的配置文件
+
+    Args:
+        path (str): 配置文件路径
+
+    Returns:
+        dict: 配置文件内容
+    '''
+    if not os.path.exists(path):
+        raise FileNotFoundError("配置文件%s不存在"%path)
+    
+    config_dict = {}
+    for line1 in readlines(path):
+        line = line1.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            continue
+
+        if line.startswith("[") and not config_dict:
+            #return ini file
+            log.info("read as ini format: %s"%path)
+            return readIniFile(path)
+        
+        key_value = line.split("=",maxsplit=1)
+        key_value = re.split("\s*=\s*",line,maxsplit=1)
+        if len(key_value) != 2:
+            continue
+        config_dict[key_value[0]] = key_value[1]
+    
+    return config_dict
+
+def readIniFile(path):
+    """
+    read ini format file
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError("配置文件%s不存在"%path)
+
+    if isIronpython:
+        import ConfigParser
+        config = ConfigParser.ConfigParser()
+        try:
+            # 注意：Python 2.7 的 read 方法没有 encoding 参数
+            # 如果文件不是 ASCII 编码，需要先解码
+            with open(path, 'r') as f:
+                content = f.read().decode('utf-8')  # 根据实际编码调整
+                config.readfp(content.split('\n'))
+        except ConfigParser.Error as e:
+            raise ValueError("配置文件格式错误: %s" % e)
+
+    else: #python 3.x
+        import configparser
+        config = configparser.ConfigParser(
+            interpolation=None,  # 禁用字符串插值
+            allow_no_value=True, # 允许没有值的键
+            delimiters=('='),    # 严格使用等号作为分隔符
+            inline_comment_prefixes=('#', ';')  # 支持的注释符号
+        )
+
+        try:
+            config.read(path, encoding='utf-8')
+        except configparser.Error as e:
+            raise ValueError("配置文件格式错误: %s" % e)
+
+    # 转换为字典结构
+    config_dict = {}
+    for section in config.sections():
+        config_dict[section] = {}
+        for option in config.options(section):
+            try:
+                # 自动类型转换（可选）
+                value = config.get(section, option)
+                if value.lower() in ('true', 'false'):
+                    value = config.getboolean(section, option)
+                elif value.isdigit():
+                    value = config.getint(section, option)
+                config_dict[section][option] = value
+            except ValueError:
+                config_dict[section][option] = value  # 保留原始字符串
+ 
+    return config_dict
+
 
 def loadCSV(csvPath, fmt = 'list'):
     '''读取csv文件
@@ -262,11 +370,29 @@ def getFileList(path,reg = ".*"):
         list: 返回符合条件的文件路径
     '''
     files = os.listdir(path)
-    regFiles = list(filter(lambda x: re.match(reg,x,re.IGNORECASE),files))
+    regFiles = list(filter(lambda x: re.match(reg+"$",x,re.IGNORECASE),files))
     if regFiles:
-        return [os.path.join(path,x)  for x in regFiles]
+        return [os.path.abspath(os.path.join(path,x))  for x in regFiles]
     else:
         []
+        
+
+def getAbsPath(path,root = None):
+    if os.path.isabs(path):  
+        return path
+    else:  
+        if not root:
+            root = os.getcwd()
+        return  os.path.abspath(os.path.join(root,path)) 
+
+def getRelPath(path,root=None):
+    
+    if os.path.isabs(path):
+        if not root:
+            root = os.getcwd()
+        return os.path.relpath(root, path)
+    else:
+        return path
 
 def findFiles(root,reg = ".*"):
     '''在目录下查找文件，便利子目录
@@ -290,13 +416,28 @@ def taskForEach(MaxParallel = 4):
     tasks = taskForEach(5)
     tasks(inputList,func)
     '''
-    from System.Threading.Tasks import Parallel,ParallelOptions 
-    taskOptions = ParallelOptions()
-    taskOptions.MaxDegreeOfParallelism = MaxParallel
-    
-    def forEach(inputList,func):
-        Parallel.ForEach(inputList, taskOptions,func)
-    return forEach
+    if isIronpython:
+        import clr #System lib need
+        from System.Threading.Tasks import Parallel,ParallelOptions 
+        taskOptions = ParallelOptions()
+        taskOptions.MaxDegreeOfParallelism = MaxParallel
+        
+        def forEach(inputList,func):
+            Parallel.ForEach(inputList,taskOptions,func)
+        return forEach
+    else:
+        import multiprocessing
+        # 创建一个进程池，包含MaxParallel个工作进程
+        pool = multiprocessing.Pool(processes=MaxParallel)
+        def forEach(inputList,func):
+            # 使用 map 方法分配任务给进程池
+            results = pool.map(func,inputList)
+            # 关闭进程池，不再接受新的任务
+            pool.close()
+            # 等待所有进程完成
+            pool.join()
+        return forEach
+        
 
 
 def regAnyMatch(regs,val,flags = re.IGNORECASE):

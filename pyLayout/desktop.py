@@ -11,27 +11,13 @@ import time
 import os,sys,re
 from .common.common import log
 
-#---library
-from .definition.padStack import PadStacks
-from .definition.componentLib import ComponentDefs
-from .definition.material import Materials
-#---natural
-from .definition.setup import Setups
-from .definition.variable import Variables
-from .postData.solution import Solutions
-
-from .common.complexDict import ComplexDict
-from .common.arrayStruct import ArrayStruct
 
 from .layoutOptions import options
 
 #log is a globle variable
 from .common import common
 from .common.common import *
-# from .common.common import log,isIronpython
-from .common.unit import Unit
 
-from .common.common import DisableAutoSave,ProcessTime
 
 
 '''初始化oDesktop对象
@@ -74,6 +60,7 @@ def initializeDesktop(version=None, installDir=None, nonGraphical = False,newDes
         aedtInstallDir = oDesktop.GetExeDir()
     elif installDir != None:
         aedtInstallDir = installDir.strip("/").strip("\\")
+#         print("AEDT InstallDir: %s"%aedtInstallDir)
     else:
         #environ ANSYSEM_ROOTxxx, set installDir from version
         
@@ -90,8 +77,8 @@ def initializeDesktop(version=None, installDir=None, nonGraphical = False,newDes
                 aedtInstallDir = os.environ[verEnv] 
         
         if aedtInstallDir:
-            pass
-        elif "ANSYSEM_ROOT" in os.environ:
+            os.environ["ANSYSEM_ROOT"] = aedtInstallDir
+        elif "ANSYSEM_ROOT" in os.environ and os.environ["ANSYSEM_ROOT"].strip():
             aedtInstallDir = os.environ["ANSYSEM_ROOT"]
         else:
             ANSYSEM_ROOTs = list(
@@ -101,11 +88,12 @@ def initializeDesktop(version=None, installDir=None, nonGraphical = False,newDes
                 ANSYSEM_ROOTs.sort(key=lambda x: x[-3:])
                 aedtInstallDir = os.environ[ANSYSEM_ROOTs[-1]]
          
-        if aedtInstallDir: 
-            sys.path.insert(0,aedtInstallDir)
-            sys.path.insert(0,os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin'))
-        else:
-            log.exception("please set environ ANSYSEM_ROOT=Ansys EM install path...")
+    if aedtInstallDir: 
+        print("AEDT InstallDir: %s"%aedtInstallDir)
+        sys.path.insert(0,aedtInstallDir)
+        sys.path.insert(0,os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin').replace('\\', '/'))
+    else:
+        log.exception("please set environ ANSYSEM_ROOT=Ansys EM install path...")
         
 #     sys.path.insert(0,aedtInstallDir)
 #     sys.path.insert(0,os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin'))
@@ -117,7 +105,8 @@ def initializeDesktop(version=None, installDir=None, nonGraphical = False,newDes
         ver2 = ver1.replace(".", "")[-3:]
         version = "Ansoft.ElectronicsDesktop.20%s.%s" % (ver2[0:2],ver2[2])
     else:
-        pass
+        if "Ansoft.ElectronicsDesktop" not in version:
+            version = "Ansoft.ElectronicsDesktop." + version
     
     #for python
     if not isIronpython:
@@ -125,8 +114,16 @@ def initializeDesktop(version=None, installDir=None, nonGraphical = False,newDes
         if nonGraphical or newDesktop or is_linux:
             try:
                 #only for version last then 2024R1
-                log.info("load PyDesktopPlugin")
+                log.info("load PyDesktopPlugin:%s"%(os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin')))
                 import PyDesktopPlugin  # @UnresolvedImport
+            except:
+                log.info("Not load PyDesktopPlugin in path:%s"%os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin'))
+
+            
+            try:
+#                 #only for version last then 2024R1
+#                 log.info("load PyDesktopPlugin")
+#                 import PyDesktopPlugin  # @UnresolvedImport
                 oAnsoftApp = PyDesktopPlugin.CreateAedtApplication(NGmode=nonGraphical,alwaysNew = newDesktop)
                 oDesktop = oAnsoftApp.GetAppDesktop()
             except:
@@ -151,13 +148,13 @@ def initializeDesktop(version=None, installDir=None, nonGraphical = False,newDes
         #try to initial by clr (.net)
         try:
             #only work for ironpython
-            log.info("Intial aedt desktop %s by clr"%version)
+            log.info("Intial aedt desktop %s by Ironpython"%version)
     
             if is_linux:
                 try:
                     from ansys.aedt.core.generic.clr_module import _clr # @UnresolvedImport
                 except:
-                    log.exception("pyaedt must be install: pip3 install pyaedt")
+                    log.exception("pyaedt must be install on linux: pip install pyaedt")
             else:
                 #for windows
                 import clr as _clr # @UnresolvedImport

@@ -27,14 +27,18 @@ from .model3D.Q3D import Q3D
 from .model3D.maxwell import Maxwell
 from .model3D.icepak import Icepak
 
+from .edb.edbApp import EdbApp,EdbSIwaveOptions,edbToSIwave
+
 ##log is a globle variable
 from .common.common import log,isIronpython
 from .common.progressBar import ProgressBar
 from .common.xlsReader import XlsReader
 
+
+
 from .pyLayout import Layout
 
-version = "V0.12.3 20241213"
+version = "V0.12.4 20250401"
 log.info("pyLayout Version: %s"%version)
 # log.info("the lastest release on: https://github.com/YongshengGuo/pyLayout")
 log.setLogLevel(logLevel="INFO")

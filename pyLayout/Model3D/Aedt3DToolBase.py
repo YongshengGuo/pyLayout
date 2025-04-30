@@ -320,12 +320,14 @@ class Aedt3DToolBase(object):
                 try:
                     self._oDesign = self._oProject.GetActiveDesign()
                 except:
-                    log.info("try to get the first design")
-                    self._oDesign = self._oProject.SetActiveDesign(designList[0])
-                    
-#                 if not self._oDesign:
+                    log.info("GetActiveDesign error.")
 #                     log.info("try to get the first design")
 #                     self._oDesign = self._oProject.SetActiveDesign(designList[0])
+                
+                #for 2024.2 GetActiveDesign() may return None
+                if not self._oDesign:
+                    log.info("try to get the first design")
+                    self._oDesign = self._oProject.SetActiveDesign(designList[0])
                     
             
             #design type

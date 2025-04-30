@@ -265,6 +265,8 @@ class Layout(object):
             if oDesktop:
                 self._oDesktop = oDesktop
                 self.UsePyAedt = bool(self.PyAedtApp) #may be lanuched from aedt internal
+                if "ANSYSEM_ROOT" not in os.environ:
+                    os.environ["ANSYSEM_ROOT"] = self._oDesktop.GetExeDir()
                 return oDesktop
         
         if self.NonGraphical:
@@ -287,7 +289,10 @@ class Layout(object):
         #intial error
         if self._oDesktop == None: 
             log.exception("Intial oDesktop error... ")
-            
+        
+        print("Aedt Version: %s"%self._oDesktop.GetVersion())
+        if "ANSYSEM_ROOT" not in os.environ:
+            os.environ["ANSYSEM_ROOT"] = self._oDesktop.GetExeDir()
         return self._oDesktop
     
      
@@ -394,13 +399,15 @@ class Layout(object):
                 try:
                     self._oDesign = self._oProject.GetActiveDesign()
                 except:
-                    log.info("try to get the first design")
-                    self._oDesign = self._oProject.SetActiveDesign(designList[0])
-                
-#                 self._oDesign = self._oProject.GetActiveDesign()
-#                 if not self._oDesign:
+                    log.info("GetActiveDesign error.")
 #                     log.info("try to get the first design")
 #                     self._oDesign = self._oProject.SetActiveDesign(designList[0])
+                
+                #for 2024.2 GetActiveDesign() may return None
+                if not self._oDesign:
+                    log.info("try to get the first design")
+                    self._oDesign = self._oProject.SetActiveDesign(designList[0])
+                    
                     
                 #make sure the design is 3DL
                 designtype = self._oDesign.GetDesignType()
@@ -504,7 +511,7 @@ class Layout(object):
         
         #delete nets that not used
         kNets = includeNetList + clipNetList
-        delNet = list(filter(lambda n:n not in kNets,self.Nets.NetNames))
+        delNet = list(filter(lambda n:n not in kNets,self.Nets.NameList))
         log.debug("delete nets not used in cutout: %s"%",".join(delNet))
         self.Nets.deleteNets(delNet)
         
@@ -528,6 +535,7 @@ class Layout(object):
 #                     "net:="            , ["GND",True]
                 ] + cutList
             ])
+        
         
     def _merge(self,layout2,solderOnComponents = None,align = None,solderBallSize = "14mil,14mil", stackupReversed = False, prefix = ""):
         '''
@@ -682,14 +690,16 @@ class Layout(object):
     
     def getUnit2(self):
         
+        unit1 = None
+        unit2 = None
         #get via most unit 
         objs = self.oEditor.FindObjects('Type', "via")
         if len(objs)>5:
-            lst = [re.sub(r"[\d\.]*","",self.oEditor.GetPropertyValue("BaseElementTab",obj,"Top Offset")) for obj in objs[:5]]
+            lst = [re.sub(r"[\d\.]*","",self.oEditor.GetPropertyValue("BaseElementTab",obj,"HoleDiameter")) for obj in objs[:5]]
             count = Counter(lst)
             most_common = count.most_common(1)
-            unit = most_common[0][0]
-            return unit
+            unit1 = most_common[0][0]
+#             return unit
         
         #get line most unit  LineWidth
         objs = self.oEditor.FindObjects('Type', "line")
@@ -697,11 +707,17 @@ class Layout(object):
             lst = [re.sub(r"[\d\.]*","",self.oEditor.GetPropertyValue("BaseElementTab",obj,"LineWidth")) for obj in objs[:5]]
             count = Counter(lst)
             most_common = count.most_common(1)
-            unit = most_common[0][0]
-            return unit
+            unit2 = most_common[0][0]
+#             return unit
             
-        #have bug in 2024R2
-        return self.oEditor.GetActiveUnits()
+        if unit1 and unit1 == unit2:
+            return unit1
+        
+        elif unit2:
+            return unit2
+        else:
+            #have bug in 2024R2
+            return self.oEditor.GetActiveUnits()
     
     def getUnit(self):
         #have bug in 2024R2
@@ -769,8 +785,9 @@ class Layout(object):
         ra = str(r)
         if not name:
             name = self.Circles.getUniqueName("circle_")
-        log.info("Create Circle: %s"%name)
-        name = self.oEditor.addCircle(
+        log.info("Create Circle: %s"%(name))
+#         log.info("Create Circle: %s  location:%s r: %s"%(name,str(location),str(r)))
+        name = self.oEditor.CreateCircle(
             [
                 "NAME:Contents",
                 "circleGeometry:="    , ["Name:=", name ,"LayerName:=", lay,"lw:=", "0","x:=",0 ,"y:=", 0 ,"r:=", "1um"]
@@ -805,7 +822,7 @@ class Layout(object):
         if not name:
             name = self.Circles.getUniqueName("line_")
         log.info("Create Line: %s"%name)
-        name = self.layout.oEditor.addLine(
+        name = self.layout.oEditor.CreateLine(
             [
                 "NAME:Contents",
                 "lineGeometry:=", 
@@ -922,6 +939,22 @@ class Layout(object):
             self.Vias[name].Location = Point(position)
             self.Vias[name].HoleDiameter = hole
             return self.Vias[name]
+    
+    def sanitize(self,nets):
+        log.info("SanitizeLayout "+",".join(nets))
+        self.oEditor.SanitizeLayout(["NAME:SanitizeList"]+list(nets))
+    
+    def healingVoid(self,smallArea="0.5mm2"):
+        log.info("healing Void area small then %s"%smallArea)
+        polys = self.Shapes.NameList
+        self.oEditor.Heal(
+            [
+                "NAME:Feature",
+                "Selection:="        , polys,
+                "Type:="        , "Voids",
+                "AntiPads:="        , False,
+                "Tol:="            , smallArea
+            ])
     
     #--- IO
     
@@ -1086,6 +1119,33 @@ class Layout(object):
         self.initDesign()
 #         self.initDesign(projectName=os.path.splitext(os.path.basename(path))[0])
         
+    def exportGDS(self,path=None,outLayerMapPath = None):
+        
+        if path == None:
+            path = self.ProjectPath+".gds"
+
+        if not outLayerMapPath:
+            outLayerMapPath = path+".layermap"
+        
+        log.info("Export layout to gds to %s"%path)
+
+        LayerMap = []
+        LayerMapTxts = []
+        for i,name in enumerate(self.layers.ConductorLayerNames):
+            LayerMap.append("entry:=")
+            LayerMap.append([ "layer:=" , name, "id:=" , i*2, "include:=" , True])
+            LayerMapTxts.append("%s %s"%(i*2,name))
+
+        self.oEditor.ExportGDSII(
+            [
+                "NAME:options",
+                "FileName:=" , path,
+                "NumVertices:=" , 8191,
+                "ArcTol:=" , 2E-06,
+                "LayerMap:=" ,LayerMap
+            ])
+        writeData(LayerMapTxts,outLayerMapPath)
+
     def openAedt(self,path,unlock=False):
         if unlock:
             if os.path.exists(path+".lock"):
@@ -1135,7 +1195,7 @@ class Layout(object):
         log.info("Save project: %s"%self.ProjectPath)
         self.oProject.Save()
     
-    def saveSiwave(self,path=None):
+    def exportSiwave(self,path=None):
         
         if not path:
             path = os.path.splitext(self.ProjectPath)[0]+".siw"
@@ -1167,13 +1227,15 @@ class Layout(object):
             shutil.rmtree(self.resultsPath)
     
     @classmethod
-    def quitAedt(cls):
+    def quitAedt(cls,wait=5):
         Module = sys.modules['__main__']
         if hasattr(Module, "oDesktop"):
             oDesktop = getattr(Module, "oDesktop")
             if oDesktop:
                 log.info("QuitApplication.")
                 oDesktop.QuitApplication()
+                
+        time.sleep(wait) #wait for aedt quit
     
     @classmethod
     def copyAEDT(cls,source,target):

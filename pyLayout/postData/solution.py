@@ -56,8 +56,14 @@ class Solution(object):
             path += ext
         else:
             pass
+
         try:
-            self.layout.oDesign.ExportNetworkData("", [solutionName], 3, path, ["ALL"], True, 50, "S", -1, 0, 15)
+            log.info("export snp: %s"%path)
+            oModule = self.layout.oDesign.GetModule("SolveSetups")
+            variation_array=oModule.ListVariations(solutionName)
+            if not variation_array:
+                variation_array = [""]
+            self.layout.oDesign.ExportNetworkData(variation_array[0], [solutionName], 3, path, ["ALL"], True, 50, "S", -1, 0, 15)
         except:
             log.error("Export snp fail, Solution data may be not available.")
 #         variation_array=self.oModule.ListVariations(solutionName)

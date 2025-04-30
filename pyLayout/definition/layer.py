@@ -42,12 +42,12 @@ get component information from oEditor.GetComponentInfo API
 """
 
 
-import re
+import re,os
 from ..common import hfss3DLParameters
 from ..common.arrayStruct import ArrayStruct
 from ..common.complexDict import ComplexDict
 from ..common.unit import Unit
-from ..common.common import log,loadCSV,writeCSV
+from ..common.common import log,loadCSV,writeCSV,writeData
 from .definition import Definitions,Definition
 from ..common.common import DisableAutoSave,ProcessTime
 
@@ -209,7 +209,7 @@ class Layer(Definition):
             return
         
         maps = self.maps.copy()
-        info = ComplexDict(dict(filter(lambda x: len(x) == 2, [p.strip().split(": ", 1) for p in self.layout.oEditor.GetLayerInfo(self.name)])))
+        info = ComplexDict(dict(filter(lambda x: len(x) == 2, [p.lstrip().split(": ", 1) for p in self.layout.oEditor.GetLayerInfo(self.name)])))
         
         
 #         info.setMaps(self.maps)
@@ -870,28 +870,6 @@ class Layers(Definitions):
         #--- byindex=1
         if mode == 1 or str(mode).lower() == "byindex":
 #             1: by index, signal layers and dielectric Layers must have same count
-
-#             #set thickness first, 20240929
-#             if len(dielectricLayersInfo)>0:
-#                 if len(dielectricLayersInfo) == len(DielectricLayerNames):
-#                     log.info("update dielectric layers thickness by index.")
-#                     for i in range(len(dielectricLayersInfo))[::-1]:
-#                         self[DielectricLayerNames[i]].Thickness = dielectricLayersInfo[i]["Thickness"]
-#                 else:
-#                     log.exception("update layers by index, Dielectric layer count (%s) not same with layout count (%s)."%(len(dielectricLayersInfo),len(DielectricLayerNames)))
-#             else:
-#                 log.debug("Input dielectricLayersInfo length is 0, skip.")
-#             
-#             if len(condLayersInfo)>0:
-#                 if len(condLayersInfo) == len(ConductorLayerNames):
-#                     log.info("update Conductor layers thickness by index.")
-#                     for i in range(len(condLayersInfo))[::-1]:
-#                         self[ConductorLayerNames[i]].Thickness = condLayersInfo[i]["Thickness"]
-#                 else:
-#                     log.exception("update layers by index, Conductor layer count (%s) not same with layout count (%s)."%(len(condLayersInfo),len(ConductorLayerNames)))
-# 
-#             else:
-#                 log.debug("Input ConductorLayerNames length is 0, skip.")
             
             Layer._enableUpdate = False
             #set  layer datas
@@ -1062,12 +1040,13 @@ class Layers(Definitions):
                     layerDict["UseEtch"] = True
                     continue
                 
-                if key.lower() == "roughness":
+                if key.lower() == "roughness" and layerDict[key]:
                     layerDict["UseR"] = True
+                    layerDict[key] = re.sub(r"[,;:]",",",layerDict[key])
                     continue
                 
                 # Thickness(um)
-                if "thickness" in key.lower():
+                if "thickness" in key.lower() and layerDict[key]:
                     if not layerDict[key].strip(): #break if Thickness not have value
                         layerDict["Thickness"] = ""
                         continue
@@ -1117,7 +1096,7 @@ class Layers(Definitions):
             row.append(layer.Thickness)
             row.append(layer.LayerDK)
             row.append(layer.LayerDF)
-            row.append(layer.Roughness if layer.Type == "signal" and layer.UseRoughness else "")
+            row.append(layer.Roughness.replace(",",";") if layer.Type == "signal" and layer.UseRoughness else "")
             layerList.append(row)
         
         writeCSV(csvPath,layerList,header=header)
@@ -1126,7 +1105,6 @@ class Layers(Definitions):
     def exportXml(self,path):
         log.info("Export stackup xml to %s"%path)
         self.layout.oEditor.ExportStackupXML(path)
-        
         
     def importXml(self,path):
         log.info("Import stackup xml from %s"%path)
