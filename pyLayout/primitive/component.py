@@ -32,6 +32,7 @@ get component information from oEditor.GetComponentInfo API
 
 import re
 import os
+from itertools import groupby
 from ..common import hfss3DLParameters
 from ..common.arrayStruct import ArrayStruct
 from ..common.complexDict import ComplexDict
@@ -85,7 +86,7 @@ class Component(Primitive):
         
         comp = self.name
         componentInfo = self.layout.oEditor.GetComponentInfo(comp)
-        maps = self.maps.copy()
+        maps = self.maps
         
         for k,v in filter(lambda x:len(x)==2,[i.split("=",1) for i in componentInfo]):
             self._info.update(k,v)
@@ -163,46 +164,70 @@ class Component(Primitive):
         "SolderBallProp:=",["sbsh:=",typ,  "sbh:=",size[0],  "sbr:=",size[1],  "sb2:=",size[2],  "sbn:=",solderMaterial],
         
         """
-        log.info("Create solderball on component: %s, size: %s"%(self.name,str(size)))        
-            
+        log.info("Create solderball on component: %s, size: %s"%(self.name,str(size)))
+        
+        #20250718
         if size==None or str(size[0]).lower()=="auto" or str(size[1]).lower()=="auto":
-            pskNames = []
-            for pin in self.Pins: #[:20]
-                pskNames.append(pin["Padstack Definition"])
-            
-            count = Counter(pskNames)
-            pskName = count.most_common(1)[0][0] #find most padstack
-            psk = self.layout.PadStacks[pskName]
-            layerName = self["PlacementLayer"]
-            pskl = psk[layerName]
-            if not pskl:
-                pskl = ArrayStruct(psk["psd/pds"][1])
-            shp = pskl.pad.shp
-            szs = pskl.pad.Szs
-            
-            if shp == "Rct":
-                size1 = (Unit(szs[0])).V if (Unit(szs[0])).V< (Unit(szs[1])).V else (Unit(szs[1])).V
-            elif  shp == "Cir":
-                size1 = (Unit(szs[0])).V
-            elif  shp == "Sq":
-                size1 = (Unit(szs[0])).V
-            else:
-                log.exception("pad shape unknown: %s"%shp)
-            
-            
-#             size2 = [(Unit(size1)*0.7)["mm"],(Unit(size1)*0.6)["mm"]] #Height 0.7x from solder, width 0.6x from aedt
-            size2 = [(Unit(size1)*self.layout.options["H3DL_solderBallHeightRatio"])["mm"],(Unit(size1)*self.layout.options["H3DL_solderBallWidthRatio"])["mm"]] #Height 0.7x from solder, width 0.6x from aedt
-            
+            bbox = self.Pins[0].BBox
+            diameter = min(abs(bbox[1].X-bbox[0].X),abs(bbox[1].Y-bbox[0].Y))
+            size2 = [(Unit(diameter)*self.layout.options["H3DL_solderBallHeightRatio"])["mm"],(Unit(diameter)*self.layout.options["H3DL_solderBallWidthRatio"])["mm"]] #Height 0.66x from solder, width 0.8x from aedt
             #20231106 for [Auto,Auto]
-            if size[0].lower()=="auto" :
-                size[0] = size2[0] 
-                
-            if size[1].lower()=="auto" :
-                size[1] = size2[1] 
-                
+
             if size==None:
                 size = size2
                 log.info("Create solderball on component: %s, size: %s"%(self.name,str(size)))
+            elif isinstance(size,(list,tuple)):
+                if size[0].lower()=="auto" :
+                    size[0] = size2[0] 
+                    
+                if size[1].lower()=="auto" :
+                    size[1] = size2[1] 
+            else:
+                log.info("solderball size error, Create solderball use default value: %s, size: %s"%(self.name,str(size)))
+                size = size2
+                
+            log.info("Create solderball on component: %s, size: %s"%(self.name,str(size)))
+
+#             pskNames = []
+#             for pin in self.Pins: #[:20]
+#                 pskNames.append(pin["Padstack Definition"])
+            
+#             count = Counter(pskNames)
+#             pskName = count.most_common(1)[0][0] #find most padstack
+#             psk = self.layout.PadStacks[pskName]
+#             layerName = self["PlacementLayer"]
+#             try:
+#                 pskl = psk[layerName]
+#             except:
+#                 pskl = ArrayStruct(psk["psd/pds"][1])
+                
+#             shp = pskl.pad.shp
+#             szs = pskl.pad.Szs
+
+#             size1 = 0
+#             if shp == "Rct":
+#                 size1 = (Unit(szs[0])).V if (Unit(szs[0])).V< (Unit(szs[1])).V else (Unit(szs[1])).V
+#             elif  shp == "Cir":
+#                 size1 = (Unit(szs[0])).V
+#             elif  shp == "Sq":
+#                 size1 = (Unit(szs[0])).V
+#             else:
+#                 log.exception("pad shape unknown: %s"%shp)
+            
+            
+# #             size2 = [(Unit(size1)*0.7)["mm"],(Unit(size1)*0.6)["mm"]] #Height 0.7x from solder, width 0.6x from aedt
+#             size2 = [(Unit(size1)*self.layout.options["H3DL_solderBallHeightRatio"])["mm"],(Unit(size1)*self.layout.options["H3DL_solderBallWidthRatio"])["mm"]] #Height 0.7x from solder, width 0.6x from aedt
+            
+#             #20231106 for [Auto,Auto]
+#             if size[0].lower()=="auto" :
+#                 size[0] = size2[0] 
+                
+#             if size[1].lower()=="auto" :
+#                 size[1] = size2[1] 
+                
+#             if size==None:
+#                 size = size2
+#                 log.info("Create solderball on component: %s, size: %s"%(self.name,str(size)))
 
         
         
@@ -231,36 +256,43 @@ class Component(Primitive):
         self.layout.oEditor.ChangeProperty(ary.Array)
 
     
-    
-    def addSnpModel(self,path):
+    def addSnpModel(self,path,pinMap=None):
+        '''
+        bug: model can't be update twice
+        '''
         
         # model->ComponentDefs->Part
         log.info("Add touchstone model to component '%s': %s"%(self.name,path))
         modelName = self.part + "_" + os.path.basename(path)# + "_1"
         modelName = re.sub("[\.\s#]","_",modelName) #replace illegal character
-        
         relPath = self.layout.getRelPath(path)
-        
-        if modelName not in self.layout.modelDefs:
-            self.layout.modelDefs.addSnpModel(relPath,name=modelName)
-    #         self.layout.ComponentDefs.addSNPDef(modelName)
-            self.layout.ComponentDefs.addSNPDef(modelName)
+        nodes = []
+        pinNames = []
+        if pinMap:
+            splits = pinMap.split(":")
+            if len(splits) == 1:
+                #only nodes given
+                nodes = [s.strip() for s in splits[0].split()]
+                pinNames = None
+            elif len(splits) > 1:
+                nodes = [s.strip() for s in splits[0].split()]
+                pinNames = [s.strip() for s in splits[1].split()]
+            else:
+                log.error("Invalid pinMap %s"%pinMap)
+
+            if not nodes:
+                portCount = int(re.sub(r"[A-Za-z]","",path.split(".")[-1]))
+                nodes = ["Port%s"%(n+1) for n in range(portCount) ]
+            if not pinNames:
+                pinNames = self.ShortPinNames
+
+            if len(nodes) != len(pinNames):
+                log.exception("pin count not match with subckt node.")
             
-            #AddSolverOnDemandModel
-            oDefinitionManager = self.layout.oProject.GetDefinitionManager()
-            oComponentManager = oDefinitionManager.GetManager("Component")
-            oComponentManager.AddSolverOnDemandModel(self.part, 
-                [
-                    "NAME:CosimDefinition",
-                    "CosimulatorType:="    , 102,
-                    "CosimDefName:="    , modelName,
-                    "IsDefinition:="    , True,
-                    "Connect:="        , True,
-                    "ModelDefinitionName:="   , modelName,
-                    "ShowRefPin2:="        , 2,
-                    "LenPropName:="        , ""
-                ])
-        
+        self.changePartType(type="Capacitor") #must change to RLC for 2025R1 now
+        self.layout.modelDefs.addSnpModel(relPath,name=modelName,pinMap=[nodes,pinNames])
+        self.layout.ComponentDefs.addSNPDef(self.part,modelName,pinMap=[nodes,pinNames]) #Edit part model
+
         self.layout.oEditor.ChangeProperty(
             [
                 "NAME:AllTabs",
@@ -286,26 +318,54 @@ class Component(Primitive):
             ])
         
         
-    def addSpiceModel(self,path):
+    def addSpiceModel(self,path,pinMap=None):
+        '''_summary_
+
+        Args:
+            path (_type_): _description_
+            pinMap: "nodes:pinNames"
         
+        Note: must change component to RLC components before add spice model
+        '''
+
         log.info("Add spice model to component '%s': %s"%(self.name,path))
         modelName = self.part + "_" + os.path.basename(path)
         modelName = re.sub("[\.\s#]","_",modelName) #replace illegal character
         
         relPath = self.layout.getRelPath(path)
-#         if modelName not in self.layout.modelDefs:
-#             self.layout.modelDefs.addSpiceModel(path,name=modelName)
-#             self.layout.ComponentDefs.addSpiceDef(modelName)
         
+        if not pinMap:
+            nodes = None
+            pinNames = None
+        else:
+            splits = pinMap.split(":")
+            if len(splits) == 1:
+                #only nodes given
+                nodes = [s.strip() for s in splits[0].split()]
+                pinNames = None
+            elif len(splits) > 1:
+                nodes = [s.strip() for s in splits[0].split()]
+                pinNames = [s.strip() for s in splits[1].split()]
+            else:
+                log.error("Invalid pinMap %s"%pinMap)
         sp = Subckt(path)
-        pinNames = self.ShortPinNames
-        nodes = []
-        if len(sp.nodes) != len(pinNames):
+        if not nodes:
+            nodes = sp.nodes
+        if not pinNames:
+            pinNames = self.ShortPinNames
+
+        if len(nodes) != len(pinNames):
             log.exception("pin count not match with subckt node.")
-        
-        for i in range(len(sp.nodes)):
-            nodes.append("%s:="%sp.nodes[i])
-            nodes.append(pinNames[i])
+
+        #---add model
+#         self.layout.modelDefs.addSpiceModel(relPath,name=modelName) #no need, will cause error
+        self.changePartType(type="Capacitor")
+
+    
+        nodeArray = []
+        for i in range(len(nodes)):
+            nodeArray.append("%s:="%nodes[i])
+            nodeArray.append(pinNames[i])
 
         self.layout.oEditor.UpdateModels(
             [
@@ -317,18 +377,18 @@ class Component(Primitive):
                     ],
                     "Prop:=", ["CompPropEnabled:=", True,"Pid:=", -1,"Pmo:=", "0","CompPropType:=", 0,
                         "PinPairRLC:=", ["RLCModelType:=", 4,"SPICE_file_path:=", relPath,
-                        "SPICE_model_name:=", modelName,"SPICE_subckt:=", sp.name,"terminal_pin_map:=", nodes]]
+                        "SPICE_model_name:=", modelName,"SPICE_subckt:=", sp.name,"terminal_pin_map:=", nodeArray]]
                 ]
             ])
             
-    def addModel(self,path=None,R=None,L=None,C=None,parallel=False):
+    def addModel(self,path=None,R=None,L=None,C=None,parallel=False,pinMap=None):
         
         if path:
             snp = path.split(".")[-1]
             if re.match(r"s\d+p", snp,re.IGNORECASE):
-                self.addSnpModel(path)
+                self.addSnpModel(path,pinMap)
             else:
-                self.addSpiceModel(path)
+                self.addSpiceModel(path,pinMap)
         elif R or L or C:
             self.addRLCModel(R=R,L=L,C=C,parallel=parallel)
         else:
@@ -422,47 +482,134 @@ class Component(Primitive):
             ])
         
 
-    def createPortOnNets(self,nets):
-        '''
-        create port on each pin of nets.
-        '''
-        if isinstance(nets, str):
-            nets = [nets]
-            
-        self.layout.oEditor.CreatePortsOnComponentsByNet(
-            ["NAME:Components",self.name],["NAME:Nets"]+nets, "Port", "0", "0", "0")
+
     
-    def createPinGroup(self,groupName,pins):
+    def createPinGroup(self,pinNames = None, net = None,groupName = None):
         '''
         pins(list)
         '''
+        if not groupName:
+            pin0 = self.layout.Pins[pinNames[0]]
+            groupName = "PinGroup_%s_%s"%(pin0.Net,pinNames[0])
+
+        if not pinNames: 
+            if net:
+                pinNames = [p.Name for p in self.Pins if p.Net.lower() == net.lower()]
+            else:
+                log.exception("pinNames or net can't be None")
+            
+        CompPinNames = self.PinNames
+        pins2 = []
+        for pin in pinNames:
+            if pin in CompPinNames:
+                pins2.append(pin)
+            else:
+                print("pin %s not found on component %s"%(pin,self.name))
+
         self.layout.oEditor.CreatePinGroups(
             [
                 "NAME:PinGroupDatas",
                 [
                     "NAME:%s"%groupName, 
-                ] + pins
+                ] + pins2
             ])
         
+        self.layout.PinGroups.push(groupName,self.layout.PinGroups.definitionCalss(groupName,pins2,self.layout))
+        
+    def _gridPins(self,pins,rows,cols):
+
+        # 定义网格的列数和行数
+#         cols = 20
+#         rows = 20
+
+        # 计算x和y的最小最大值
+        x_values = [pin.X for pin in pins]
+        y_values = [pin.Y for pin in pins]
+        x_min, x_max = min(x_values), max(x_values)
+        y_min, y_max = min(y_values), max(y_values)
+
+        # 生成网格边界
+        x_bins = [x_min + i * (x_max - x_min) / cols for i in range(cols + 1)]
+        y_bins = [y_min + i * (y_max - y_min) / rows for i in range(rows + 1)]
+
+        # 定义一个函数，计算某个值属于哪个网格
+        def get_bin_index(value, bins):
+            for i in range(len(bins) - 1):
+                if bins[i] <= value < bins[i + 1]:
+                    return i
+            return len(bins) - 2  # 处理最大值的情况（右边界）
+
+        # 分配每个坐标到网格
+        grid_assignment = {}
+        for pin in pins:
+            col = get_bin_index(pin.X , x_bins)
+            row = get_bin_index(pin.Y, y_bins)
+
+            key = "%s_%s" % (col, row)  # 创建键
+            if key in grid_assignment:
+                grid_assignment[key].append(pin)
+            else:
+                grid_assignment[key] = [pin]
+        return grid_assignment
+
+    def createGridPinGroup(self,pinNames,nets=None,groupName = None,rows = 1,cols = 1):
+
+        if isinstance(nets,str):
+            nets = [nets]
+
+        pinList = []
+        if pinNames:
+            for name in pinNames:
+                if name in self.layout.Pins:
+                    pinList.append(self.layout.Pins[name])
+                else:
+                    log.info("Pin %s not exist,skip"%name)
+                    continue
+      
+        grid_assignment = self._gridPins(pinList,rows,cols)
+        for k,v in grid_assignment.items():
+            sorted_data = sorted(v, key=lambda x: x.Net)
+            grouped_data = groupby(sorted_data, key=lambda x: x.Net) 
+            for netName, netPins in grouped_data:
+                log.info("Create PinGroup, component:%s Net:%s Grid:%s"%(self.name,netName,k))
+                groupName = "PinGroup_%s_%s"%(netName,self.Name)
+                pinNames = [p.Name for p in netPins]
+                self.createPinGroup(pinNames,groupName = groupName+"_"+k)
+
+    def createPinGroupByNets(self,nets,rows = 1,cols = 1):
+
+        if isinstance(nets,str):
+            nets = [nets]
+
+        pinList = []
+        for net in nets:
+            pins = [p for p in self.Pins if p.Net.lower() == net.lower()]
+            if pins:
+                pinList.extend(pins)
+
+        grid_assignment = self._gridPins(pinList,rows,cols)
+        for k,v in grid_assignment.items():
+            sorted_data = sorted(v, key=lambda x: x.Net)
+            grouped_data = groupby(sorted_data, key=lambda x: x.Net) 
+            for netName, netPins in grouped_data:
+                log.info("Create PinGroup, component:%s Net:%s Grid:%s"%(self.name,netName,k))
+                groupName = "PinGroup_%s_%s"%(netName,self.Name)
+                pinNames = [p.Name for p in netPins]
+                self.createPinGroup(pinNames,groupName=groupName+"_"+k)
+
+              
+    def createPinGroupOnNet(self,net, groupName=None):
+        '''
+        pins(list)
+        '''
+        return self.createPinGroup(net=net,groupName=groupName)
+
+    
     def deletePinGroup(self,groupName):
         self.layout.oEditor.Delete([groupName])
-        
-        
-    def createPinGroupByNet(self,groupName,net):
-        '''
-        pins(list)
-        '''
-        pins = [p.Name for p in self.Pins if p.Net == net]
-        
-        self.layout.oEditor.CreatePinGroups(
-            [
-                "NAME:PinGroupDatas",
-                [
-                    "NAME:%s"%groupName, 
-                ] + pins
-            ])
-        
-    
+        self.layout.PinGroups.pop(groupName)
+
+
     def createPinGroupPort(self,posGroup,refGroup,portZ0 = "0.1ohm"):
         '''
         posGroup is port Name
@@ -484,14 +631,23 @@ class Component(Primitive):
         self.layout.oEditor.AddPinGroupRefPort([posGroup], [refGroup])
         return posGroup
 
-
-    def createPinGroupPortOnNets(self,posNet,refNet,portZ0 = "0.1ohm"):
+    def createPinGroupPortByNet(self,posNet,refNet,portZ0 = "0.1ohm"):
         '''
         Port_posNet is port Name
         '''
-        posGroup = self.createPinGroupByNet("Port_%s"%posNet, posNet)
-        refGroup = self.createPinGroupByNet("Port_%s"%refNet, refNet)
+        posGroup = self.createPinGroupOnNet(posNet,"Port_%s"%posNet)
+        refGroup = self.createPinGroupOnNet(refNet,"Port_%s"%refNet)
         return self.createPinGroupPort(posGroup, refGroup, portZ0)
+
+    def createPortOnNets(self,nets):
+        '''
+        create port on each pin of nets.
+        '''
+        if isinstance(nets, str):
+            nets = [nets]
+            
+        self.layout.oEditor.CreatePortsOnComponentsByNet(
+            ["NAME:Components",self.name],["NAME:Nets"]+nets, "Port", "0", "0", "0")
 
     def removeAllPorts(self):
         self.layout.oEditor.RemovePortsOnComponents(
@@ -522,6 +678,11 @@ class Component(Primitive):
             f.write(txts)
             f.close()
             
+    def hasPin(self,pinName):
+        for pin in self.PinNames:
+            if pin.lower() == pinName.lower():
+                return True
+        return False
     
     def dissolve(self):
         self.layout.oEditor.DissolveComponents(["NAME:elements",self.Name])
@@ -538,29 +699,7 @@ class Components(Primitives):
     
     def __init__(self,layout=None):
         super(self.__class__,self).__init__(layout, type="component",primitiveClass=Component)
-    
-#     def updateModels(self,modelList):
-#         '''
-#         Args:
-#             modelList(list): information of component in BOM
-#        - {Name: R1, Part: RES_0402_100ohm, Type: Resistor, Model: filepath, RLC: [R,L,C]}
-# 
-#         '''
-#         Name = modelList['Name']
-#         RLC = modelList['RLC']
-#         Part = modelList['Part']
-#         filepath = modelList['Model']
-#         
-#         if filepath:
-#             fileType = os.path.splitext(file)[-1]
-#             if fileType in ['.lib','.sp','.inc']:
-#                 #addSpiceModel
-#                 self.addSpiceModelforCom(Name,Part,filepath)
-#         elif RLC:
-#             #changeRLCValue
-#             self.changeRLCValue(Name,RLC)
-#         else:
-#             pass
+
         
     def importBOM(self,csvfile):
         pass
@@ -578,10 +717,10 @@ class Components(Primitives):
         '''
         comps = []
         try:
-            comps = [c for c in self.ComponentDict if re.match(part,c.Part,re.IGNORECASE)]
+            comps = [c for c in self.ObjectDict if re.match(part,c.Part,re.IGNORECASE)]
         except:
             log.debug("getComponentsByPart regex error: %s,try to get use string compare"%part)
-            comps = [c for c in self.ComponentDict if c.Part.lower() == part.lower()]
+            comps = [c for c in self.ObjectDict if c.Part.lower() == part.lower()]
 
         return comps
     
@@ -666,26 +805,40 @@ class Components(Primitives):
     def updateModels(self,models):
         #[{"RefDes":"","Part":"cap1","PartType":"Capacitor","FileName":null,"R":null,"L":null,"C":null,"Library":null}]
         
-        #---model by Part
-        modelComponents = [m["RefDes"] for m in models]
-        flagByPart = True
-        for each in modelComponents:
-            if each:
-                flagByPart = False
-        
-        models2 = []
-        if flagByPart:
-            for each in models:
-                model = ComplexDict(each)
-                for c in self.getComponentsByPart(model.Part):
+        modelList = []
+        tempList = []
+        for model in models:
+            if not ( model["FileName"].strip() or model["R"].strip() or model["C"].strip() or model["L"].strip()):
+                #if no model file, no R, no C, no L, will skip
+                continue
+
+            if model["RefDes"].strip(): 
+                #if Refdes hass value, will add model
+                refs = re.split("[\s,;]+",model["RefDes"])
+                for ref in refs:
+                    if not ref:
+                        continue
+                    if ref in tempList:
+                        continue
+
                     model2 = model.copy()
-                    model2.RefDes = c.name
-                    models2.append(model2)
-            models = models2                            
-        
+                    model2["RefDes"] = ref
+                    tempList.append(ref)
+                    modelList.append(model2)
+            elif model["Part"].strip():
+                for ref in self.getComponentsByPart(model["Part"]):
+                    if ref in tempList:
+                        continue
+                    model2 = model.copy()
+                    model2["RefDes"] = ref
+                    tempList.append(ref)
+                    modelList.append(model2)
+            else:
+                log.warning("Component model has no RefDes or Part, will skip")                         
+
         #---model by refdes
-        bar = ProgressBar(len(models),"Add component models:")
-        for each in models:
+        bar = ProgressBar(len(modelList),"Add component models:")
+        for each in modelList:
             bar.showPercent()
             #{"RefDes":"","Part":"cap1","PartType":"Capacitor","FileName":null,"R":null,"L":null,"C":null,"Library":null}
             #RefDes,Part,PartType,FileName,Library,R,L,C
@@ -707,7 +860,7 @@ class Components(Primitives):
                     model.FileName = os.path.join(self.layout.ProjectDir,"Model",model.FileName)
                 comp.addModel(model.FileName)
                 
-            elif model.Library:
+            elif "Library" in model and model.Library:
                 splits = re.split(r"[;,]", model.Library)
                 if len(splits) == 1:
                     comp.addLibraryModel(path = splits[0])
@@ -724,3 +877,9 @@ class Components(Primitives):
                 log.info("model error: %s"%str(model))
         
         bar.stop()
+
+    def findComponentByPin(self,pinName):
+        for component in self.All:
+            if component.hasPin(pinName):
+                return component
+        return None

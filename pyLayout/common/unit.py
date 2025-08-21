@@ -138,8 +138,8 @@ class Unit(object):
     def S(self):
         return str(self.Expression)     
     
-    def  __getitem__(self, key):
-        return self.convertoNewUnit(key)
+    def  __getitem__(self, key,decimal=None):
+        return self.convertoNewUnit(key,decimal)
     
     def __call__(self,unit):
         return self.convertoNewUnit(unit)
@@ -267,7 +267,7 @@ class Unit(object):
             s = s.replace(k+"unit",self.unitConv[k])
         return s
     
-    def convertoNewUnit(self,u=""):
+    def convertoNewUnit(self,u="",decimal = None):
         '''
         return string value of given unit
         '''
@@ -279,11 +279,13 @@ class Unit(object):
         
         if len(u.strip())<2:
             raise ValueError("New unit must not less then two letter ")
-        return "%s%s"%(self/Unit(u),u)
+        if decimal:
+            fmt = "%%.%df%%s"%decimal
+            return fmt%(self/Unit(u),u)
+        else:
+            return "%s%s"%(self/Unit(u),u)
     #short name for convertoNewUnit
 #     U = convertoNewUnit
-
-
 
 if __name__ == '__main__':
     u = Unit("60Gps+5m-2pf") 

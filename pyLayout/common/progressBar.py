@@ -39,7 +39,7 @@ class ProgressBar(object):
             finsh = "▓" * int(progress/self.step+1)
             need_do = "-" * int(100/self.step - int(progress/self.step+1))
             dur = time.time() - self.start
-            print("\r{}: {:^3.0f}%[{}->{}]  {:.2f}s  ".format(self.prompt,progress, finsh, need_do, dur), end="")          
+            print("\r{}: {:^3.0f}%[{}->{}]  {:.2f}s  ".format(self.prompt,float(progress), finsh, need_do, dur), end="")          
 #             sys.stdout.flush()
             self.temp = progress
     

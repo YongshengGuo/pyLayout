@@ -39,7 +39,7 @@ from ..common.arrayStruct import ArrayStruct
 class Variable(Definition):
     '''_summary_
     '''
-    layoutTemp = None
+
     def __init__(self,name = None,layout=None):
         '''Initialize Component object
         Args:
@@ -64,7 +64,7 @@ class Variable(Definition):
         
         if self.parsed and not force:
             return
-        maps = self.maps.copy()
+        maps = self.maps
         _array = ArrayStruct([])
         self._info.update("Name",self.name)
         self._info.update("Array", _array)
@@ -223,4 +223,16 @@ class Variables(Definitions):
         
         var = self.add("EvalExpressionValue", expression)
         return var.SIValue
+    
+    
+    def setByDict(self,varDict):
+        for k,v in varDict.items():
+            if k in self:
+                self[k] = v
+            else:
+                log.info("Variable not found: %s"%k)
+        
+        
+        
+        
         

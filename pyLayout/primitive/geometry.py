@@ -3,19 +3,18 @@
 #--- @Author: Yongsheng.Guo@ansys.com, Henry.he@ansys.com,Yang.zhao@ansys.com
 #--- @Time: 20230410
 
-
+import sys
 import math
 from ..common.unit import Unit
 from ..common.common import log
 
 class Point(object):
-    layout = None
-    def __init__(self,pt = None,layout = None, arc = False):
+    def __init__(self,pt = None,arc = False,layout = None):
         '''
         pt: list,tuple,"x,y",Point, 3DL Point
         '''
         
-        
+        self.layout = layout
         self.x = 0
         self.y = 0
         self.arc = arc
@@ -23,7 +22,7 @@ class Point(object):
         if isinstance(pt, (list,tuple)):
             self.x = pt[0]
             self.y = pt[1]
-        elif "ADispatchWrapper" in str(type(pt)):
+        elif "Wrapper" in str(type(pt)) or "Dispatch" in str(type(pt)):
             self.x = pt.GetX()
             self.y = pt.GetY()
         elif isinstance(pt, self.__class__):
@@ -39,7 +38,9 @@ class Point(object):
             log.debug("Point init error")
             
         if layout:
-            self.__class__.layout = layout
+            self.layout = layout
+        else:
+            self.layout = sys.modules["__main__"].layout
             
     def __getitem__(self, key):
         """
@@ -69,7 +70,7 @@ class Point(object):
         log.exception("Point key error: %s"%str(key))
         
     def __getattr__(self,key):
-        if key in ["x","y","arc"]: #not key.lower()
+        if key in ["x","y","arc","layout"]: #not key.lower()
             return object.__getattr__(self,key)
         else:
             log.debug("__getattr__ from __getitem__: %s"%key)
@@ -81,6 +82,9 @@ class Point(object):
         
     def __len__(self):
         return 2
+    
+    def __abs__(self):
+        return (self.xvalue**2+self.yvalue**2)**0.5
         
     @property
     def H3DLPoint(self):
@@ -121,8 +125,7 @@ class Point(object):
     
 class Polygen(object):
     
-    layout = None
-    def __init__(self,pts = None,layout = None,closed = True):
+    def __init__(self,pts = None,closed = True,layout = None):
         '''
         pts: [[x1,y1],[x2,y2]]
         '''
@@ -136,9 +139,10 @@ class Polygen(object):
                 else:
                     #pt is list or tuple
                     self.points.append(Point(pt))
-                    
         if layout:
-            self.__class__.layout = layout
+            self.layout = layout
+        else:
+            self.layout = sys.modules["__main__"].layout
     
     @property
     def H3DLPolygen(self):

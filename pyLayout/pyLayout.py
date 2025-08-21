@@ -40,6 +40,7 @@ Examples：
 import os,sys,re
 import shutil
 import time
+import math
 from collections import Counter
 
 from .desktop import initializeDesktop,releaseDesktop
@@ -50,6 +51,7 @@ from .primitive.pin import Pins
 from .primitive.port import Ports
 from .primitive.line import Lines
 from .primitive.via import Vias
+from .primitive.source import Sources
 
 #---library
 from .definition.padStack import PadStacks
@@ -61,12 +63,14 @@ from .definition.layer import Layers
 from .definition.setup import Setups
 from .definition.net import Nets
 from .definition.variable import Variables
+from .definition.pinGroup import PinGroups
+
 from .postData.solution import Solutions
 
 from .common.complexDict import ComplexDict
 from .common.arrayStruct import ArrayStruct
 
-from .layoutOptions import options
+from .options import options
 
 from .primitive.primitive import Primitives,Objects3DL
 from .primitive.geometry import Polygen,Point
@@ -78,26 +82,19 @@ from .common.common import *
 from .common.unit import Unit
 
 from .common.common import DisableAutoSave,ProcessTime
+from .common.licenseChecker import LicenseChecker
+from .common.hfss3DLParameters import analysis_cfg
 
 class Layout(object):
     '''
     classdocs
     '''
-    maps = {
-        "InstallPath":"InstallDir",
-        "Path":"ProjectPath",
-        "Name":"DesignName",
-        "Ver":"Version",
-        "Comps":"Components"
-        }
-    
     #FindObjects 
     primitiveTypes = ['pin', 'via', 'rect','circle', 'arc', 'line', 'poly','plg', 'circle void','line void', 'rect void', 
            'poly void', 'plg void', 'text', 'cell','Measurement', 'Port', 'component', 'CS', 'S3D', 'ViaGroup']
     definitionTypes = ["Layer","Material","Setup","PadStack","ComponentDef","Variable","Net"]
     
-
-    def __init__(self, version=None, installDir=None,nonGraphical=False,newDesktop=False,usePyAedt=True):
+    def __init__(self, version=None, installDir=None,nonGraphical=False,newDesktop=False,usePyAedt=False,oDesktop = None):
         '''
         初始化PyLayout对象环境
         
@@ -111,6 +108,14 @@ class Layout(object):
             open AEDT 2013R1, return PyLayout
         
         '''
+        self.maps = {
+            "InstallPath":"InstallDir",
+            "Path":"ProjectPath",
+            "Name":"DesignName",
+            "Ver":"Version",
+            "Comps":"Components"
+            }
+        
         self._info = ComplexDict({
             "Version":None,
             "InstallDir":None,
@@ -124,14 +129,14 @@ class Layout(object):
         self._info.update("PyAedtApp", None)
         self._info.update("Log", log)
         self._info.update("options",options)
-        self._info.update("Maps", self.maps)
+#         self._info.update("Maps", self.maps)
         
         if not isIronpython:
             log.info("In cpython environment, pyaedt shold be installed, install command: pip install pyaedt")
 #             self._info.update("UsePyAedt", True)
         
         #----- 3D Layout object
-        self._oDesktop = None
+        self._oDesktop = oDesktop
         self._oProject = None
         self._oDesign = None
         self._oEditor = None
@@ -195,7 +200,7 @@ class Layout(object):
             return self[key]
         
     def __setattr__(self, key, value):
-        if key in ["_oDesktop","_oProject","_oDesign","_oEditor","_info"]:
+        if key in ["_oDesktop","_oProject","_oDesign","_oEditor","_info","maps"]:
             object.__setattr__(self,key,value)
         else:
             self[key] = value
@@ -238,7 +243,7 @@ class Layout(object):
             self.PyAedtApp = launch_desktop(version = self.version,non_graphical=self.NonGraphical,new_desktop = self.newDesktop,close_on_exit=False)
             self.UsePyAedt = True
             self._oDesktop = self.PyAedtApp.odesktop
-            sys.modules["__main__"].oDesktop = self._oDesktop
+            # sys.modules["__main__"].oDesktop = self._oDesktop
             log.logger = self.PyAedtApp.logger
 #             self._info.update("Log", self.PyAedtApp._logger)
 #             common.log = self.PyAedtApp._logger
@@ -247,8 +252,52 @@ class Layout(object):
 #             log.info("if you don't want use pyaedt to intial pylayout, please set layout.usePyAedt = False before get oDesktop")
             self.UsePyAedt = False
             log.warning("pyaedt app intial error.")
+    
+    def _AddKeepGUILicenseProject(self,oDesktop):
+        
+        if not self.options["AEDT_KeepGUILicense"]:
+            return
+            
+        projectList = oDesktop.GetProjectList()
+        #for COM Compatibility, yongsheng guo #20240422
+        if "ComObject" in str(type(projectList)):
+            projectList = [projectList[i] for i in range(projectList.count)]
+        
+        if len(projectList)>0:
+            return
+        
+        if "AEDT_KeepGUILicense" in projectList:
+            return
+        
+        oProject = oDesktop.NewProject()
+        oProject.Rename("AEDT_KeepGUILicense.aedt", True)
+        oProject.InsertDesign("HFSS", "UseForKeepGUILicense", "", "")
+        
+    def _DelKeepGUILicenseProject(self,oDesktop):
         
         
+        if not self.options["AEDT_KeepGUILicense"]:
+            return
+            
+        projectList = oDesktop.GetProjectList()
+        #for COM Compatibility, yongsheng guo #20240422
+        if "ComObject" in str(type(projectList)):
+            projectList = [projectList[i] for i in range(projectList.count)]
+        
+        if not "AEDT_KeepGUILicense" in projectList:
+            return
+        
+        oDesktop.DeleteProject("AEDT_KeepGUILicense")
+
+    def waitForlicense(self,featureList,timeout = 100*60):
+        if self.options["AEDT_LicenseServer"]:
+            #set license server
+            os.environ["ANSYSLMD_LICENSE_FILE"] = self.options["AEDT_LicenseServer"]
+
+        if self.options["AEDT_LicenseServer"] and self.options["AEDT_WaitForLicense"]:
+            licchk = LicenseChecker(os.environ["ANSYSLMD_LICENSE_FILE"])
+            licchk.waitForlicense(featureList,timeout)
+
     @property
     def oDesktop(self):
         
@@ -258,7 +307,7 @@ class Layout(object):
         #try to initial use pyaedt
         log.debug("Try to load pyaedt.")
         
-        #try to get global oDesktop
+        #try to get global oDesktop, for run script from aedt 
         Module = sys.modules['__main__']
         if hasattr(Module, "oDesktop"):
             oDesktop = getattr(Module, "oDesktop")
@@ -272,7 +321,8 @@ class Layout(object):
         if self.NonGraphical:
             log.info("Will be intial oDesktop in nonGraphical mode.")
         
-
+        
+        self.waitForlicense([{"module":"HFSSGUI"}])
         #try to intial by pyaedt
 #         self.UsePyAedt = False
         if self.UsePyAedt:
@@ -283,7 +333,6 @@ class Layout(object):
             log.info("try to initial oDesktop using internal method... ")
             self._oDesktop = initializeDesktop(self.version,self.installDir,nonGraphical=self.NonGraphical,newDesktop=self.newDesktop)
             self.installDir = self._oDesktop.GetExeDir()
-            sys.modules["__main__"].oDesktop = self._oDesktop
             self.UsePyAedt = False
             
         #intial error
@@ -293,6 +342,11 @@ class Layout(object):
         print("Aedt Version: %s"%self._oDesktop.GetVersion())
         if "ANSYSEM_ROOT" not in os.environ:
             os.environ["ANSYSEM_ROOT"] = self._oDesktop.GetExeDir()
+
+#         self._AddKeepGUILicenseProject(self._oDesktop)
+        
+        #do not set oDesktop to main modules, AEDT has a chance of crashing under certain circumstances.  
+        # sys.modules["__main__"].oDesktop = self._oDesktop
         return self._oDesktop
     
      
@@ -416,21 +470,29 @@ class Layout(object):
                     self._info.update("oDesign",None)
                     self._info.update("oEditor",None)
                     self._info.update("DesignName", "")
+                    self._info.update("designtype", designtype)
                 else:
                     self._info.update("oDesign",self._oDesign)
                     self._info.update("oEditor",self._oDesign.SetActiveEditor("Layout"))
                     self._info.update("DesignName", self.getDesignName(self._oDesign))
+                    self._info.update("designtype", designtype)
                     
                 #intial log with design
                 path = os.path.join(self._info.projectDir,"%s_%s.log"%(self._info.projectName,self._info.designName))
                 if self.UsePyAedt or "AedtLogger" in str(type(log.logger)):
                     import logging
-                    fileHandler = log.logger.logger.handlers[0]
+                    
+                    try:
+                        logger1 = log.logger.logger
+                    except:
+                        logger1 = log.logger
+                    
+                    fileHandler = logger1.handlers[0]
                     fileHandler2 = logging.FileHandler(path)
                     fileHandler.stream = fileHandler2.stream
                     fileHandler.baseFilename = path
-                    log.logger.logger.removeHandler(fileHandler)
-                    log.logger.logger.addHandler(fileHandler)
+                    logger1.removeHandler(fileHandler)
+                    logger1.addHandler(fileHandler)
                     del fileHandler2
                     del fileHandler
                     
@@ -480,6 +542,8 @@ class Layout(object):
         info.update("PadStacks", PadStacks(layout = self))
         info.update("ComponentDefs", ComponentDefs(layout = self))
         info.update("ModelDefs", ModelDefs(layout = self))
+        info.update("PinGroups", PinGroups(layout = self))
+        info.update("Sources", Sources(layout = self))
         
 #         info.update("Primitives",Primitives(layout = self))
         info.update("unit",self.getUnit2())  #some bug exit in oEditor.GetActiveUnits()
@@ -487,8 +551,11 @@ class Layout(object):
         info.update("layout",self)
         
         #intial geometry definition
-        Polygen.layout = self
-        Point.layout = self
+#         Polygen.layout = self
+#         Point.layout = self
+        
+        #When multiple layouts are open, there is a risk associated with the use of this statement here.
+        sys.modules["__main__"].layout = self
         
     def getDesignName(self,oDesign):
         return oDesign.GetName().split(';')[-1]
@@ -779,7 +846,7 @@ class Layout(object):
 #         return name
     
     
-    def addCircle(self,layer,location,r,name=None):
+    def addCircle(self,layer,location,r,net=None,name=None):
         lay = self.Layers[layer].Name
         loc = Point(location)
         ra = str(r)
@@ -794,12 +861,14 @@ class Layout(object):
             ])
         
         self.Circles.push(name)
-
-        self.Circles[name].Center = location #"%s,%s"%(loc.x,loc.y)
-        self.Circles[name].Radius = ra
-        return self.Circles[name]
+        obj = self.Circles[name]
+        obj.Center = location #"%s,%s"%(loc.x,loc.y)
+        obj.Radius = ra
+        if net:
+            obj.Net = net
+        return obj
     
-    def addLine(self,layerName,points,width="0.1mm",name=None):
+    def addLine(self,layerName,points,width="0.1mm",net=None,name=None):
         '''
         points:list,tuple, Point
         '''
@@ -838,12 +907,16 @@ class Layout(object):
             ])
         
         self.Lines.push(name)
+        obj = Lines[name]
         for i in range(len(pts)):
-            self.Lines[name]["Pt%s"%i] = pts[i]
+            obj["Pt%s"%i] = pts[i]
+        
+        if net:
+            obj.Net = net
             
-        return self.Lines[name]
+        return obj
     
-    def addRectangle(self,layerName,ptA,ptB,name=None):
+    def addRectangle(self,layerName,ptA,ptB,net=None,name=None):
         if not name:
             name = self.Circles.getUniqueName("rect_")
         log.info("Create Rectangle: %s"%name)
@@ -860,11 +933,15 @@ class Layout(object):
             ])
         
         self.rects.push(name)
-        self.Rects[name].PtA = ptA 
-        self.Rects[name].PtB = ptB
-        return self.Rects[name]
+        obj = self.Rects[name]
+        obj.PtA = ptA 
+        obj.PtB = ptB
+        if net:
+            obj.Net = net
+        
+        return obj
     
-    def addpolygon(self,layerName,points,name=None):
+    def addpolygon(self,layerName,points,net=None,name=None):
         '''
         points:list,tuple, Point
         '''
@@ -897,12 +974,16 @@ class Layout(object):
         ])
         
         self.Polys.push(name)
+        obj = self.Polys[name]
         for i in range(len(pts)):
-            self.Polys[name]["Pt%s"%i] = pts[i]
+            obj["Pt%s"%i] = pts[i]
             
-        return self.Polys[name]
+        if net:
+            obj.Net = net
+            
+        return obj
     
-    def addVia(self,position,padStack,hole="0mm",upperLayer=None,lowerLayer=None,isPin = False,name=None):
+    def addVia(self,position,padStack,hole="0mm",upperLayer=None,lowerLayer=None,isPin = False,net=None,name=None):
         
         if not name:
             name = self.Circles.getUniqueName("poly_")
@@ -930,15 +1011,21 @@ class Layout(object):
             ])
         
         if isPin:
+            
             self.Pins.push(name)
-            self.Pins[name].Location = Point(position)
-            self.Pins[name].HoleDiameter = hole
-            return self.Pins[name]
+            obj = self.Pins[name]
+#             self.Pins[name].Location = Point(position)
+#             self.Pins[name].HoleDiameter = hole
+#             if net:
+#                 obj.Net = net
+#             return self.Pins[name]
         else:
             self.Vias.push(name)
-            self.Vias[name].Location = Point(position)
-            self.Vias[name].HoleDiameter = hole
-            return self.Vias[name]
+            obj = self.Vias[name]
+            
+        obj.Location = Point(position)
+        obj.HoleDiameter = hole
+        return obj
     
     def sanitize(self,nets):
         log.info("SanitizeLayout "+",".join(nets))
@@ -1071,13 +1158,19 @@ class Layout(object):
                 edbOutPath = layoutPath[:-4] + ".aedb"
             if not controlFile:
                 controlFile = ""
-            self.importBrd(layoutPath,edbOutPath,controlFile)
+            # self.importBrd(layoutPath,edbOutPath,controlFile)
+            edbout = self.translateLayout(layoutPath,edbOutPath,controlFile)
+            self.importEBD(edbout)
         elif layoutType.lower() == "odb++":
             if not edbOutPath:
                 edbOutPath = layoutPath[:-4] + ".aedb"
             if not controlFile:
                 controlFile = ""
             self.importODB(layoutPath,edbOutPath,controlFile)
+        
+        elif layoutType.lower() == "siwave":
+            self.importSIwave(layoutPath)
+            
         else:
             raise Exception("Unknow layout type")
     
@@ -1085,14 +1178,13 @@ class Layout(object):
         if path[-4:] == "aedb":
             path = os.path.join(path,"edb.def")
             
-        aedtPath = os.path.dirname(path)[-5:] + ".aedt"
-        if os.path.exists(aedtPath):
-            self.openAedt(aedtPath)
-            return
-        
         if not os.path.exists(path):
             log.exception("EDB file not exist: %s"%path)
             
+        aedtPath = os.path.dirname(path)[-5:] + ".aedt"
+        if os.path.exists(aedtPath):
+            os.remove(aedtPath)
+
         log.info("load edb : %s"%path)
         oTool = self.oDesktop.GetTool("ImportExport")
         oTool.ImportEDB(path)
@@ -1104,8 +1196,16 @@ class Layout(object):
         '''
         
         if edbPath == None:
-            edbPath = path[-3:]+"aedb"
+            edbPath = path[:-3]+"aedb"
             
+        if os.path.exists(edbPath[:-4]+"aedt"):
+            log.info("Remove old edt file: %s"%edbPath[:-4]+"aedt")
+            os.remove(edbPath[:-4]+"aedt")
+
+        if os.path.exists(edbPath):
+            log.info("Remove old edb file: %s"%edbPath)
+            shutil.rmtree(edbPath)
+
         oTool = self.oDesktop.GetTool("ImportExport")
         oTool.ImportExtracta(path, edbPath, controlFile)
         self.initDesign()
@@ -1113,12 +1213,44 @@ class Layout(object):
         
     def importODB(self,path,edbPath = None, controlFile = ""):
         if edbPath == None:
-            edbPath = path[-3:]+"aedb"
+            edbPath = path[:-3]+"aedb"
+            
+        if os.path.exists(edbPath[:-4]+"aedt"):
+            log.info("Remove old edt file: %s"%edbPath[:-4]+"aedt")
+            os.remove(edbPath[:-4]+"aedt")
+
+        if os.path.exists(edbPath):
+            log.info("Remove old edb file: %s"%edbPath)
+            shutil.rmtree(edbPath)
+
         oTool = self.oDesktop.GetTool("ImportExport")
         oTool.ImportODB(path, edbPath, controlFile)
         self.initDesign()
 #         self.initDesign(projectName=os.path.splitext(os.path.basename(path))[0])
         
+    def importSIwave(self,path,edbPath = None):
+        if edbPath == None:
+            edbPath = os.path.splitext(self.ProjectPath)[0]+"aedb"
+
+        execPath = os.path.join(self.ProjectDir, "SaveSiw.exec") 
+        with open(execPath,"w+") as f:
+            f.write("SaveEdb %s"%edbPath)
+            f.close()
+
+        if self.installDir not in os.environ['PATH']:
+            split = ";" if 'nt' in os.name else ":"
+            os.environ['PATH'] = split.join([self.installDir,os.environ['PATH']])
+            log.debug(os.environ['PATH'])
+
+        cmd = '"{0}" {1} {2} -formatOutput'.format("siwave_ng",path,execPath)
+        log.info("Import Siwave to Aedt: %s"%path)
+        with os.popen(cmd,"r") as output:
+            for line in output:
+                log.info(line)
+            output.close()
+        self.importEBD(edbPath)
+         
+
     def exportGDS(self,path=None,outLayerMapPath = None):
         
         if path == None:
@@ -1147,9 +1279,13 @@ class Layout(object):
         writeData(LayerMapTxts,outLayerMapPath)
 
     def openAedt(self,path,unlock=False):
+        
+        if not os.path.exists(path):
+            log.exception("Project Path not exist: %s"%path)
+        
         if unlock:
             if os.path.exists(path+".lock"):
-                os.remove(path)
+                os.remove(path+".lock")
         
         log.info("OpenProject : %s"%path)
         self.oDesktop.OpenProject(path)
@@ -1188,7 +1324,11 @@ class Layout(object):
         if not os.path.exists(subDir):
             os.makedirs(subDir)
         
+        
         self.oProject.SaveAs(path, OverWrite)
+#         self.close(save=True)
+#         self.copyAEDT(self.projectPath,path)
+#         self.openAedt(path)
         self.initDesign(projectName=os.path.splitext(os.path.basename(path))[0])
 
     def save(self):
@@ -1226,19 +1366,52 @@ class Layout(object):
             log.info("delete project from disk: %s"%self.resultsPath)
             shutil.rmtree(self.resultsPath)
     
-    @classmethod
-    def quitAedt(cls,wait=5):
+#     @classmethod
+#     def quitAedt(cls):
+#         Module = sys.modules['__main__']
+#         if hasattr(Module, "oDesktop"):
+#             oDesktop = getattr(Module, "oDesktop")
+#             if oDesktop:
+#                 log.info("QuitApplication.")
+#                 oDesktop.QuitApplication()
+#         releaseDesktop()
+#         time.sleep(5) #wait for aedt quit
+
+    def quitAedt(self,force=False):
         Module = sys.modules['__main__']
         if hasattr(Module, "oDesktop"):
             oDesktop = getattr(Module, "oDesktop")
-            if oDesktop:
-                log.info("QuitApplication.")
+        else:
+            return
+        
+        if not oDesktop:
+            return
+         
+        #nonGraphical will quit by AEDT
+        # if self.nonGraphical:
+        #     #quit aedt if in nonGraphical mode
+        #     oDesktop.QuitApplication()
+        #     releaseDesktop()
+
+        if force:
+#             self._DelKeepGUILicenseProject(oDesktop)
+            oDesktop.QuitApplication()
+            releaseDesktop()
+            time.sleep(5)
+        else:
+            if self.options["AEDT_KeepGUILicense"]:
+                log.info("KeepGUILicense have been set, Aedt will not quit without release license.")
+            else:
+#                 self._DelKeepGUILicenseProject(oDesktop)
                 oDesktop.QuitApplication()
-                
-        time.sleep(wait) #wait for aedt quit
+                releaseDesktop()
+                time.sleep(5)
     
     @classmethod
     def copyAEDT(cls,source,target):
+        '''
+        copy aedb,aedt
+        '''
         from shutil import copy
         #source = (source,source+".aedt")(".aedt" in source)
         if ".aedt" not in source:
@@ -1268,7 +1441,44 @@ class Layout(object):
         return aedtTarget
 
     #---analyze and job   
+
+    def _getPackCount(self,cores):
+        pack = 0
+        if cores>8*4*4*4+4:
+            pack = math.ceil(math.log((cores-4)/2) / math.log(4))
+        elif cores>8*4*4+4:
+            pack = 4
+        elif cores>8*4+4:
+            pack = 3
+        elif cores>8+4:
+            pack = 2
+        elif cores>4:
+            pack = 1
+        else:
+            pass
+        return pack
+
     def analyze(self):
+
+        if self.options["AEDT_WaitForLicense"]:
+            if self.options["AEDT_HPC_NumCores"]:
+                cores = self.options["AEDT_HPC_NumCores"]
+                self.setCores(cores)
+            else:
+                oDesktop = self.oDesktop
+                #worked, get core from ActiveDSOConfigurations/
+                activeHPCOption = oDesktop.GetRegistryString("Desktop/ActiveDSOConfigurations/HFSS 3D Layout Design")
+                log.info("ActiveDSOConfigurations: %s"%activeHPCOption)
+                #oDesktop.SetRegistryString(r"Desktop/DSOConfigurationsEx/HFSS 3D Layout Design/%s/NumCores"%activeHPCOption)
+                activeHpcStr = oDesktop.GetRegistryString("Desktop/DSOConfigurationsEx/HFSS 3D Layout Design/%s"%activeHPCOption)
+                rst = re.findall(r"NumCores=(\d+)", activeHpcStr)
+                if rst:
+                    cores = int(rst[0])
+                else:
+                    cores = 0
+            if cores:
+                self.waitForlicense([{"module":"HFSSSolver"},{"feature":"anshpc_pack","count":self._getPackCount(cores)}])
+
         self.oDesign.AnalyzeAll()
     
     def submitJob(self,host="localhost",cores=20):
@@ -1285,39 +1495,72 @@ class Layout(object):
         self.close(save=True)
         log.info(cmd)
         os.system(cmd)
+#         with os.popen(cmd,"r") as output:
+#             for line in output:
+#                 log.info(line)
+#             output.close()
+        
         return jobId
     
-    def setCores(self,croes,hpcType = None):
+    def batchAnalysis(self,host="localhost",cores=20):
+        installPath = self.oDesktop.GetExeDir()
+        jobId = "RSM_{:.5f}".format(time.time()).replace(".","")
+        cmd = '"{exePath}" -jobid {jobId} -distributed -machinelist list={host}:-1:{cores}:90%:1 -auto -monitor \
+                -useelectronicsppe=1 -ng -batchoptions "" -batchsolve {aedtPath}'.format(
+                    exePath = os.path.join(installPath,"ansysedt.exe"),
+                    jobId = jobId,
+                    host = host, cores = cores, aedtPath = self.ProjectPath
+                    )
+        log.info("Project will be closed to batch Analysis.")
+        log.info("submit job ID: %s"%jobId)
+        self.close(save=True)
+        log.info(cmd)
+
+        if self.options["AEDT_WaitForLicense"]:
+            self.waitForlicense([{"module":"HFSSSolver"},{"feature":"anshpc_pack","count":self._getPackCount(cores)}])
+
+        with os.popen(cmd,"r") as output:
+            for line in output:
+                log.info(line)
+            output.close()
+
+    def setCores(self,cores,hpcType = "Pack"):
         '''
         cores (int): 
         hpcType (str): Pack or Workgroup
         '''
         
+        self.options["AEDT_HPC_NumCores"] = cores
+
         oDesktop = self.oDesktop
+        ConfigName = "pyaedt_config"
+        cfg = analysis_cfg.format(ConfigName ="pyaedt_config",DesignType = "HFSS 3D Layout Design",MachineName="localhost",NumCores = cores)
+        pathScf = os.path.join(self.projectDir,"hpc.acf")
+        writeData(cfg, pathScf)
+        log.info('set Active HPC Configuration "%s":  NumCores=%s'%(ConfigName,cores))
+        oDesktop.SetRegistryFromFile(pathScf)
+        oDesktop.SetRegistryString(r"Desktop/ActiveDSOConfigurations/" + self.designtype, ConfigName)
+
         #worked
-        activeHPCOption = oDesktop.GetRegistryString("Desktop/ActiveDSOConfigurations/HFSS 3D Layout Design")
-        log.info("ActiveDSOConfigurations: %s"%activeHPCOption)
-        #oDesktop.SetRegistryString(r"Desktop/DSOConfigurationsEx/HFSS 3D Layout Design/%s/NumCores"%activeHPCOption)
-        activeHpcStr = oDesktop.GetRegistryString("Desktop/DSOConfigurationsEx/HFSS 3D Layout Design/%s"%activeHPCOption)
+        # activeHPCOption = oDesktop.GetRegistryString("Desktop/ActiveDSOConfigurations/HFSS 3D Layout Design")
+        # log.info("ActiveDSOConfigurations: %s"%activeHPCOption)
+        # #oDesktop.SetRegistryString(r"Desktop/DSOConfigurationsEx/HFSS 3D Layout Design/%s/NumCores"%activeHPCOption)
+        # activeHpcStr = oDesktop.GetRegistryString("Desktop/DSOConfigurationsEx/HFSS 3D Layout Design/%s"%activeHPCOption)
         
-        cores_old = re.findall(r"NumCores=(\d+)", activeHpcStr)
+        # cores_old = re.findall(r"NumCores=(\d+)", activeHpcStr)
         
-        if cores_old and int(cores_old[0])!=int(croes):
-            activeHpcStr = re.sub(r"NumCores=\d+","NumCores=%s"%int(croes), activeHpcStr)
+        # if cores_old and int(cores_old[0])!=int(cores):
+        #     activeHpcStr = re.sub(r"NumCores=\d+","NumCores=%s"%int(cores), activeHpcStr)
             
-            
-    #         #not work
-    #         log.info('set Active HPC Configuration "%s":  NumCores=%s'%(activeHPCOption,croes))
-    #         oDesktop.SetRegistryString("Desktop/DSOConfigurationsEx/HFSS 3D Layout Design/%s"%activeHPCOption,activeHpcStr)
-    #         
-            #workaround
-            scfStr = "$begin 'Configs'\n$begin 'Configs'\n%s$end 'Configs'\n$end 'Configs'\n"%activeHpcStr
-            pathScf = os.path.join(self.projectDir,"hpc.acf")
-            writeData(scfStr, pathScf)
-            log.info('set Active HPC Configuration "%s":  NumCores=%s'%(activeHPCOption,croes))
-            self.oDesktop.SetRegistryFromFile(pathScf)
-        else:
-            log.info("ActiveDSOConfigurations have the same cores as required")
+
+        #     #workaround
+        #     scfStr = "$begin 'Configs'\n$begin 'Configs'\n%s$end 'Configs'\n$end 'Configs'\n"%activeHpcStr
+        #     pathScf = os.path.join(self.projectDir,"hpc.acf")
+        #     writeData(scfStr, pathScf)
+        #     log.info('set Active HPC Configuration "%s":  NumCores=%s'%(activeHPCOption,cores))
+        #     self.oDesktop.SetRegistryFromFile(pathScf)
+        # else:
+        #     log.info("ActiveDSOConfigurations have the same cores as required")
         
         if hpcType:
             self.setHPCType(hpcType)

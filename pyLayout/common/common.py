@@ -21,6 +21,13 @@ from functools import wraps
 import time
 import contextlib  # 引入上下文管理包
 
+
+try:
+    from collections import Iterable #for python2
+except: 
+    from collections.abc import Iterable #for python3
+
+
 #intial log
 from .log import Log as logger
 log = logger(logLevel = "DEBUG")  #CRITICAL > ERROR > WARNING > INFO > DEBUG,
@@ -256,6 +263,10 @@ def writeJson(path,config):
         path (str): json路径
         config (dict): 文件内容
     '''
+    dirPath = os.path.dirname(path)
+    if not os.path.exists(dirPath):
+        os.makedirs(dirPath, exist_ok=True)
+    
     with open(path,"w+") as f:
         json.dump(config,f,indent=4, separators=(',', ': '))
         f.close()
@@ -318,8 +329,8 @@ def findDictKey(key,dict1,ignorCase = True):
             if k.lower()==key.lower():
                 return k
     else:
-        if k in dict1:
-            return k
+        if key in dict1:
+            return key
     #other case   
 #     log.debug("not found key value:%s"%key)
     return "//key_not_found//"
@@ -515,35 +526,3 @@ def DisableAutoSave(func):
         log.info("Recover AutoSave for function: {0}".format(func.__name__))
         temp = self.layout.enableAutosave(flag=temp)
     return wrapped_function
-
-
-# class ProgressBar(object):
-# 
-#     def __init__(self,total=100,prompt="progress",step=3):
-#         self.total = total
-#         self.prompt = prompt
-#         self.step = step
-#         self.pos = 0
-#         self.temp = 0
-#         self.start = None
-#         
-#     def showPercent(self,pos=None):
-#         if self.start == None:
-#             self.start = time.time()
-#         if pos==None:
-#             self.pos +=1
-#         else:
-#             self.pos = None
-#             
-#         progress = int(self.pos*100/self.total)
-#         if progress>self.temp:
-# #             print("\r{} %{}: {}".format(self.prompt,progress, "#" * (int(progress/self.step)+1)),end="")
-#             finsh = "▓" * int(progress/self.step+1)
-#             need_do = "-" * int(100/self.step - int(progress/self.step+1))
-#             dur = time.time() - self.start
-#             print("\r{}: {:^3.0f}%[{}->{}]  {:.2f}s  ".format(self.prompt,progress, finsh, need_do, dur), end="")          
-# #             sys.stdout.flush()
-#             self.temp = progress
-#         
-#     def animation(self):
-#         pass

@@ -32,26 +32,20 @@ class Definition(object):
     'mass_density:=', '0', 
     'specific_heat:=', '0']
     '''
-    
-    layoutTemp = None
-    maps = {}
-    
+
     def __init__(self, name,type,layout=None):
         '''Initialize Pin object
         Args:
             name (str): Via name in layout
             layout (PyLayout): PyLayout object, optional
         '''
-        if layout:
-            self.__class__.layoutTemp = layout
-            self.layout = layout
-        else:
-            self.layout = self.__class__.layoutTemp
-            
+
+        self.layout = layout
         self.name = name
         self.type = type
         
         self._info = ComplexDict()
+        self.maps = {}
         self.parsed = False
 
     def __getitem__(self, key):
@@ -86,16 +80,23 @@ class Definition(object):
         if len(keyList)>1:
             self[keyList[0]][keyList[1]] = value
 
-        if key in self._info.Array:
+        elif key in self._info.Array:
             self._info.Array[key] = value
             self.update()
+            return
             
         elif key in self._info:
             self._info[key] = value
-
+            if key in self.maps:
+                self.update()
+            return
         else:
-            log.exception("key error for %S: %s"%(self.type,key))       
-        
+            log.info("Try to update all subkey %S: %s"%(self.type,key))
+#             log.exception("key error for %S: %s"%(self.type,key))
+            count = self.updateByKey(key, value)
+            if not count:
+                log.exception("key error for %S: %s"%(self.type,key))
+            return
 
     def __getattr__(self,key):
 
@@ -165,8 +166,10 @@ class Definition(object):
     def Array(self):
         self.parse()
         return self._info.Array
-        
-
+    @Array.setter
+    def Array(self,value):
+        self.parse()
+        self._info.Array = value
         
     def parse(self,force = False):
         '''
@@ -177,7 +180,7 @@ class Definition(object):
             return
         
         log.debug("parse definition: %s"%self.name)
-        maps = self.maps.copy()
+        maps = self.maps
         datas = self.oManager.GetData(self.name)
         if datas:
             _array = ArrayStruct(tuple2list(datas),maps)
@@ -196,6 +199,15 @@ class Definition(object):
         self.oManager.Edit(self.Name,self.Array.Datas)
         self.parse()
 
+    def updateByKey(self,key,value):
+        '''
+        update all matched key to value
+        '''
+        count = self.Array.updateByKey(key,value)
+        if count:
+            log.info("update key:%s value: %s, for %s times"%(key,value,count))
+            self.update()
+        return count
 
     
 class Definitions(object):
@@ -286,10 +298,15 @@ class Definitions(object):
         return dict(filter(func,self.ObjectDict.items()))
     
     def refresh(self):
+        if self._definitionDict:
+            self._definitionDict.clear()
+            
         self._definitionDict  = None
         
-    def push(self,name):
-        self.DefinitionDict.update(name,self.definitionCalss(name,layout=self.layout))
+    def push(self,name,obj=None):
+        if not obj:
+            obj = self.definitionCalss(name,layout=self.layout)           
+        self.DefinitionDict.update(name,obj)
     
     def pop(self,name):
         del self.DefinitionDict[name]

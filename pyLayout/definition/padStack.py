@@ -26,9 +26,6 @@ class PadStack(Definition):
     Args:
     '''
     
-    maps = {
-        "DrillSize":{"Key":"psd/hle/Szs","Get":lambda x:x[0] if len(x) else None},
-        }
     mapsPDS = {
         "PadSize":{"Key":"pad/Szs","Get":lambda x:x[0] if len(x) else None},
         "AntipadPadSize":{"Key":"ant/Szs","Get":lambda x:x[0] if len(x) else None},
@@ -37,6 +34,11 @@ class PadStack(Definition):
     
     def __init__(self, name = None,layout = None):
         super(self.__class__,self).__init__(name,type="Padstack",layout=layout)
+        self.maps = {
+            "DrillSize":{"Key":"psd/hle/Szs","Get":lambda x:x[0] if len(x) else None},
+            }
+
+        
 
 
     def parse(self,force = False):
@@ -84,32 +86,7 @@ class PadStack(Definition):
         
         self.layout.addVia(self,position,upperLayer,lowerLayer,isPin)
         
-#         if len(center)!=2:
-#             log.exception("Center must have length 2")
-#             
-#         if not layerLower:
-#             layerLower = layerUpper
-#         
-#         name = self.layout.oEditor.CreateVia(
-#             [
-#                 "NAME:Contents",
-# #                 "name:="        , "pad_0000",
-#                 "ReferencedPadstack:="    , self.Name,
-#                 "vposition:="        , ["x:=", center[0],"y:=",center[1]],
-#                 "vrotation:="        , ["0deg"],
-#                 "overrides hole:="    , False,
-#                 "hole diameter:="    , ["0mm"],
-#                 "Pin:="            , isPin,
-#                 "highest_layer:="    , layerUpper,
-#                 "lowest_layer:="    , layerLower
-#             ])
-#         
-#         if isPin:
-#             self.layout.Pins.push(name)
-#         else:
-#             self.layout.Vias.push(name)
-#         
-#         return name
+
 
 class PadStacks(Definitions):
     

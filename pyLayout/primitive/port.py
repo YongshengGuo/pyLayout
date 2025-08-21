@@ -35,7 +35,7 @@ class Port(Primitive):
         
         super(self.__class__,self).parse(force) #initial component properties
         
-        maps = self.maps.copy()
+        maps = self.maps
         EMProperties = self.layout.oEditor.GetProperties("EM Design","Excitations:%s"%self.Name)
         self._info.update("EMProperties",EMProperties)
         for prop in EMProperties:
@@ -90,7 +90,10 @@ class Port(Primitive):
      
     def setPortImpedance(self,value):
         self.set("Impedance", str(value))
-        self.set("Renormalize Impedence", str(value))
+        try:
+            self.set("Renormalize Impedence", str(value))
+        except:
+            self.set("Renormalize Impedance", str(value))
         
     def setSIwavePortRefNet(self,value):
         self.set("Reference Net", str(value))
@@ -235,11 +238,25 @@ class Ports(Primitives):
         oModule.ReorderMatrix(rulePorts+unRulePorts)
         return rulePorts+unRulePorts
     
-    def addPinGroupPort(self,posPins,refPins,name=None,portZ0=0.1):
-        
-        #remove pins not in layout
-        posPins = [pin for pin in posPins if pin in self.layout.Pins]
-        refPins = [pin for pin in refPins if pin in self.layout.Pins]
+    def addPinGroupPort(self,posPins=None,refPins=None,compName=None,posNet=None,negNet=None,name=None,portZ0=0.1):
+
+        if not posPins:
+            if compName and posNet: 
+                posPins = [pin.Name for pin in self.layout.Components[compName].Pins if pin.Net.lower() == posNet.lower()]
+            else:
+                log.exception("posPins or compName,posNet should be specified one")
+        else:
+            #remove pins not in layout
+            posPins = [pin for pin in posPins if pin in self.layout.Pins]
+
+        if not refPins:
+            if compName and negNet: 
+                posPins = [pin.Name for pin in self.layout.Components[compName].Pins if pin.Net.lower() == negNet.lower()]
+            else:
+                log.exception("refPins or compName,negNet should be specified one")
+        else:
+            #remove pins not in layout
+            refPins = [pin for pin in refPins if pin in self.layout.Pins]
         
         if len(posPins)<1:
             log.info("PinGroup posPins have no pin. skip.")
@@ -274,6 +291,10 @@ class Ports(Primitives):
                 ["NAME:%s"%posPortName]+posPins,
                 ["NAME:%s"%refPortName]+refPins
             ])
+            
+        self.layout.PinGroups.push("%s"%posPortName,self.layout.PinGroups.definitionCalss("%s"%posPortName,posPins,self.layout))
+        self.layout.PinGroups.push("%s"%refPortName,self.layout.PinGroups.definitionCalss("%s"%refPortName,refPins,self.layout))
+        
         self.layout.oEditor.CreatePinGroupPort(
             [
                 "Port:="        , posPortName,
@@ -287,5 +308,5 @@ class Ports(Primitives):
         if name:
             self.layout.Ports[posPortName]["Port"] = name
 
-        return self.layout.Ports[name]
+        return  self[name]
         

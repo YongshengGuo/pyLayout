@@ -119,26 +119,25 @@ class Log(object):
 #         self.aedtMessage(content)
 
     def info(self,content,*args):
-        self.logger.info(content+",".join(list(args)))
+        self.logger.info(str(content)+",".join(list(args)))
 #         self.aedtMessage(content+",".join(args))
            
     def warning(self,content,*args):
-        self.logger.warning(content+",".join(args))
-        self.aedtMessage(content+",".join(args))
+        self.logger.warning(str(content)+",".join(args))
+        self.aedtMessage(str(content)+",".join(args))
             
     def error(self,content,*args):
-        self.logger.error(content+",".join(args))
-        self.aedtMessage(content+",".join(args))
+        self.logger.error(str(content)+",".join(args))
+        self.aedtMessage(str(content)+",".join(args))
            
     def critical(self,content,*args):
-        self.logger.critical(content+",".join(args))
-        self.aedtMessage(content+",".join(args))
+        self.logger.critical(str(content)+",".join(args))
+        self.aedtMessage(str(content)+",".join(args))
         
     def exception(self,content,*args):
-        if isinstance(content, str):
-            content = Exception(content+",".join(args))
-            self.logger.error(content)
-            raise content
+        content = Exception(str(content)+",".join(args))
+        self.logger.error(content)
+        raise content
 
     #for debug
     def messageBox(self,content):

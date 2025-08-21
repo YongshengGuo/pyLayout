@@ -82,13 +82,13 @@ from .common import log
 def getDictData(key, dict1, default = None,ignorCase = True):
         '''
         Args:
-            key (str,list,tuple): the key paths, like "/Header/Comment"  or ("Header","Comment")
+            key (str,list,tuple,ComplexDict): the key paths, like "/Header/Comment"  or ("Header","Comment")
             dict1(dict1): dict to find
         return:
             value (any): value for the key
         '''
 
-        if isinstance(dict1, (list,tuple)):
+        if isinstance(dict1, (list,tuple,ComplexDict)):
             return dict1[int(key)]
     
         if isinstance(key, str):
@@ -106,7 +106,7 @@ def getDictData(key, dict1, default = None,ignorCase = True):
             else:       
                 return getDictData(keyList,dict1,default)
         
-        if isinstance(key,(list,tuple)):
+        if isinstance(key,(list,tuple,ComplexDict)):
             key2 = list(filter(lambda k:k.strip(),key)) #filter empty key
             
             if len(key2) ==0:
@@ -120,7 +120,7 @@ def getDictData(key, dict1, default = None,ignorCase = True):
             else: # len(key2)>1:
                 temp = dict1
                 for k in key2:
-                    if isinstance(temp, (list,tuple)):
+                    if isinstance(temp, (list,tuple,ComplexDict)):
                         temp =  temp[int(k)]
                     else:
                         temp = findDictValue(k, temp,default = default, ignorCase = ignorCase)
@@ -134,11 +134,11 @@ def getDictData(key, dict1, default = None,ignorCase = True):
 def setDictData(key,value,dict1, ignorCase = True, enableUpdate = False):
     '''
     Args:
-        key (str,list,tuple): the key paths, like "/Header/Comment"  or ("Header","Comment")
+        key (str,list,tuple,ComplexDict): the key paths, like "/Header/Comment"  or ("Header","Comment")
         value (any): value for the key
         dict1(dict): dict to set value
     '''
-    if isinstance(dict1, (list,tuple)):
+    if isinstance(dict1, (list,tuple,ComplexDict)):
         dict1[int(key)] = value
         return
     
@@ -146,6 +146,7 @@ def setDictData(key,value,dict1, ignorCase = True, enableUpdate = False):
         k = findDictKey(key, dict1, ignorCase = ignorCase)
         if k!= "//key_not_found//":
             dict1[k] = value
+#             dict1[k] = dict1[k].__class__(value) if not isinstance(dict1[k], (None.__class__)) else None  #20250808
             return
         
         if not re.findall(r"[\\/]",key):
@@ -155,16 +156,16 @@ def setDictData(key,value,dict1, ignorCase = True, enableUpdate = False):
                 raise Exception("key error: %s"%str(key))
             
         keyList = list(filter(lambda k:k.strip(),re.split(r"[\\/]", key,maxsplit = 1)))
-        return setDictData(keyList,value,dict1)
+        return setDictData(keyList,value,dict1,ignorCase,enableUpdate)
     
-    elif isinstance(key,(list,tuple)): #value must dict or will be overrided
+    elif isinstance(key,(list,tuple,ComplexDict)): #value must dict or will be overrided
         key2 = list(filter(lambda k:k.strip(),key)) #filter empty key
         if len(key2) == 1: 
-            return setDictData(key[0],value,dict1)
+            return setDictData(key[0],value,dict1,ignorCase,enableUpdate)
 
         elif len(key2) == 2: 
             dict2 = getDictData(key2[0],dict1)
-            return setDictData(key2[1],value,dict2)
+            return setDictData(key2[1],value,dict2,ignorCase,enableUpdate)
 
         else:
             key1 = key2[:-1]
@@ -176,7 +177,7 @@ def setDictData(key,value,dict1, ignorCase = True, enableUpdate = False):
                     temp[key] = value
                 else:
                     raise Exception("key error: %s"%str(key))
-            if isinstance(temp, (list,tuple)):
+            if isinstance(temp, (list,tuple,ComplexDict)):
                 temp[int(key2)] = value
             else:
                 #option or dict
@@ -187,7 +188,7 @@ def setDictData(key,value,dict1, ignorCase = True, enableUpdate = False):
 
 def delDictKey(key,dict1,ignorCase = True):
     
-    if isinstance(dict1, (list,tuple)):
+    if isinstance(dict1, (list,tuple,ComplexDict)):
         del dict1[int(key)]
         return
     
@@ -203,7 +204,7 @@ def delDictKey(key,dict1,ignorCase = True):
         keyList = list(filter(lambda k:k.strip(),re.split(r"[\\/]", key,maxsplit = 1)))
         return delDictKey(keyList,dict1)
     
-    elif isinstance(key,(list,tuple)): #value must dict or will be overrided
+    elif isinstance(key,(list,tuple,ComplexDict)): #value must dict or will be overrided
         key2 = list(filter(lambda k:k.strip(),key)) #filter empty key
         if len(key2) == 1: 
             return delDictKey(key[0],dict1)
@@ -219,7 +220,7 @@ def delDictKey(key,dict1,ignorCase = True):
             temp = getDictData(key1,dict1,default = "//key_not_found//")
             if temp ==  "//key_not_found//":
                 raise Exception("key error: %s"%str(key))
-            if isinstance(temp, (list,tuple)):
+            if isinstance(temp, (list,tuple,ComplexDict)):
                 del temp[int(key2)]
             else:
                 #option or dict
@@ -238,11 +239,11 @@ class ComplexDict(object):
         
         maps: { Key:{"Value":(x1,x2) ,"Get":lambda (x1,x2):xx*2, "Set":lambda x:xx=x}}
     '''
-
+    enableUpdate = False
     def __init__(self,dictData=None, path = None, maps = None):
         self._dict = {}  #intial as empty dict
         self.ignorCase = True
-        self.enableUpdate = False
+#         self.enableUpdate = False
         self.maps = maps
         if path:
             if os.path.exists(path):
@@ -261,7 +262,7 @@ class ComplexDict(object):
         """
         Args:
             key(str): Access using path mode "/Header/Comment"
-            key(list,tuple): access using key list mode ("Header","Comment")
+            key(list,tuple,ComplexDict): access using key list mode ("Header","Comment")
         Returns:
             (ComplexDict): return ComplexDict object if a dict
             (Any) : return value if not a dict
@@ -270,7 +271,7 @@ class ComplexDict(object):
         
         #use for loop iteration, return values
         if isinstance(key, int):
-            if isinstance(self._dict , (list,tuple)):
+            if isinstance(self._dict , (list,tuple,ComplexDict)):
                 self._dict[key]
             else:
                 #return keys
@@ -293,7 +294,7 @@ class ComplexDict(object):
     def __setitem__(self,key,value):
         '''
         Args:
-            key (str,list,tuple): the key paths, like "/Header/Comment"  or ("Header","Comment")
+            key (str,list,tuple,ComplexDict): the key paths, like "/Header/Comment"  or ("Header","Comment")
             value (any): value for the key
         '''
         self.set(key,value)
@@ -365,7 +366,7 @@ class ComplexDict(object):
     def __repr__(self, *args, **kwargs):
         if isinstance(self._dict,dict):
             return "ComplexDict (dict) object with length: %s"%str(self._dict)
-        elif isinstance(self._dict, (list,tuple)):
+        elif isinstance(self._dict, (list,tuple,ComplexDict)):
             return "ComplexDict (list) object with length: %s"%str(self._dict)
         else:
             return object.__repr__(self, *args, **kwargs)
@@ -383,6 +384,24 @@ class ComplexDict(object):
     def __deepcopy__(self, memo):
         #memo：一个字典，用于记录已经复制过的对象，防止循环引用导致的无限递归。
         return deepcopy(self._dict, memo)
+    
+#     def __del__(self):
+#         pass
+#         self._dict.clear()
+#         del self._dict
+#         del self
+
+    # def __getstate__(self):
+    #     # 返回需要序列化的属性（排除 _cache）
+    #     return object.__getstate__()
+ 
+    # def __setstate__(self, state):
+    #     # 恢复对象状态（可添加额外初始化逻辑）
+    #     object.__setstate__(state)
+        
+    def clear(self):
+        self._dict.clear()
+        del self._dict
 
     @property
     def Props(self):
@@ -508,7 +527,7 @@ class ComplexDict(object):
                         else:
                             raise KeyError("key error: %s"%str(mapKey))
                         
-                    elif isinstance(mapKey["Key"], (list,tuple)): #if more then one key, lambda should return same size value
+                    elif isinstance(mapKey["Key"], (list,tuple,ComplexDict)): #if more then one key, lambda should return same size value
                         datas = [getDictData(value,self._dict, default = "//key_not_found//") for value in mapKey["Key"]] 
                         if not regAnyMatch("//key_not_found//", datas):
                             return mapKey["Get"](*datas)
@@ -550,32 +569,35 @@ class ComplexDict(object):
                     if isinstance(mapKey["Key"], str):
                         if "Set" not in mapKey:
                             log.exception("%s property is read only."%mapKey["Key"])
-                        returnValue = mapKey["Set"](value)
+                            
+                        if mapKey["Key"].lower() == "self":
+                            return mapKey["Set"](self[mapKey["Key"]],value)
+                        else:
+                            returnValue = mapKey["Set"](value)
                         if returnValue!=None: 
-                            setDictData(mapKey["Key"],returnValue,self._dict)
+                            #set return value to dict
+                            setDictData(mapKey["Key"],returnValue,self._dict,enableUpdate=self.enableUpdate)
                         else:
                             #if returnValue is none value, which mean returnValue not need,value is set by function.
                             pass
                         
-                    elif isinstance(mapKey["Key"], (list,tuple)):
+                    elif isinstance(mapKey["Key"], (list,tuple,ComplexDict)):
                         if "Set" not in mapKey:
                             log.exception("%s property is read only."%mapKey["Key"])
                         returnValue = mapKey["Set"](value)
                         for i in range(len(mapKey)):
                             if returnValue!=None: 
-                                setDictData(mapKey["Key"][i],returnValue[i],self._dict)
+                                setDictData(mapKey["Key"][i],returnValue[i],self._dict,enableUpdate=self.enableUpdate)
                             else:
                                 #if returnValue is none value, which mean returnValue not need,value is set by function.
                                 pass
                     else:
                         pass
                 else:
-                    setDictData(mapKey,value,self._dict)
+                    setDictData(mapKey,value,self._dict,enableUpdate=self.enableUpdate)
                 
                 return None
-        else:
-            pass
-        
+
         setDictData(key,value,self._dict,enableUpdate=self.enableUpdate)
         
 #         try:
@@ -637,6 +659,17 @@ class ComplexDict(object):
                         
         delDictKey(key,self._dict)
         
+        
+    def findNode(self,nodeName):
+        for k,v in self._dict.items():
+            if k.lower() == nodeName.lower():
+                return v
+            elif isinstance(v,dict):
+                ret = ComplexDict(v).findNode(nodeName)
+                if ret:
+                    return ret
+        return None                    
+                           
                     
     def copy(self):
         return self.__class__(deepcopy(self._dict))

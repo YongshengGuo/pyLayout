@@ -19,7 +19,6 @@ class Node(ComplexDict):
     Composed of pins objects
     node Type: VRM,Sink, Mid, Start, End
     '''
-    maps = {}
     def __init__(self,node):
         
         if isinstance(node,Node):

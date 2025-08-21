@@ -46,7 +46,6 @@ from .definition import Definitions,Definition
 class Net(Definition):
     '''_summary_
     '''
-    maps = {}
     def __init__(self, name = None,layout = None):
         super(self.__class__,self).__init__(name,type="Net",layout=layout)
     
@@ -69,7 +68,7 @@ class Net(Definition):
         
         if self.parsed and not force:
             return
-        maps = self.maps.copy()
+        maps = self.maps
         _array = ArrayStruct([])
         self._info.update("Name",self.name)
         self._info.update("Array", _array)
@@ -339,6 +338,9 @@ class Nets(Definitions):
             list: netNames list of regular input
         '''
         
+        if not regNets:
+            return []
+        
         if type(regNets) == str:
 #             regNets = [regNets]
             regNets = regNets.strip().split()
@@ -366,12 +368,21 @@ class Nets(Definitions):
     
     
     def deleteNets(self,netList):
-        if not isinstance(netList, (list,tuple)) or len(netList)<1:
+        if not isinstance(netList, (list,tuple)):
             log.info("deleteNets input is empty")
             return 
         
-        self.layout.oEditor.DeleteNets(netList)
+#         #移除No-Net
+#         while "<NO-NET>" in netList:
+#             netList.remove("<NO-NET>")
         
+        if len(netList)<1:
+            log.info("deleteNets input is empty")
+            return 
+        
+        log.info("delete nets: %s"%str(netList))
+        self.layout.oEditor.DeleteNets(netList)
+        self.layout.initObjects()  #add 20250707
         
     def reNameXnetForce(self,regNets,tail="_C"):
         '''

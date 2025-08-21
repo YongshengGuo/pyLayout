@@ -52,7 +52,7 @@ class Via(Primitive):
             return
         
         super(self.__class__,self).parse(force) #initial component properties
-        maps = self.maps.copy()
+        maps = self.maps
         
         #add X,Y location property
         maps.update({"X":{

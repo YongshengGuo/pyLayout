@@ -6,6 +6,10 @@ import os,sys,re
 # from ..common.common import readCfgFile,log
 from ..common.common import *
 from ..common.config import Config
+from .edbSiwaveOption import EdbSIwaveOptions
+from .edbPinGroup import EdbPinGroups
+from .edbComponent import EdbComponents
+from .edbLayer import EdbLayers
 
 appPath = os.path.realpath(__file__)
 appDir = os.path.split(appPath)[0] 
@@ -40,128 +44,6 @@ def edbToSIwave(edbPath,siwPath=None,installDir=None):
         output.close()
     
     return siwPath
-
-
-class EdbSIwaveOptions(object):
-
-    def __init__(self,edbapp=None,cell=None):
-        '''
-        from ansys.aedt.core import Edb
-        edbapp = Edb(edbpath=".aedb")
-        '''
-        self._config = None
-        self.edbapp = edbapp
-        self.cell = cell
-        self.loadOptions()
-
-    def __getitem__(self, key):
-        """
-        key: str
-        """
-        return self.get(key)
-
-
-    def __setitem__(self,key,value):
-        self.set(key,value)
-
-    def __getattr__(self,key):
-
-        if key in ["edbapp","_config","maps","cell"]:
-            return object.__getattr__(self,key)
-        else:
-            log.debug("__getattr__ from _dict: %s"%key)
-            return self[key]
-        
-
-    def __setattr__(self, key, value):
-        if key in ["edbapp","_config","maps","cell"]:
-            object.__setattr__(self,key,value)
-        else:
-            log.debug("get property '%s' from dict."%key)
-            self[key] = value
-
-    def __repr__(self):
-        return "%s Object: %s"%(self.__class__.__name__,self.Name)
-    
-    def __contains__(self,key):
-        return key in self.Config
-    
-    def __dir__(self):
-        return list(dir(self.__class__)) + list(self.__dict__.keys()) + list(self.Props)
-
-    @property
-    def Config(self):
-        if not self._config:
-            self.loadOptions()
-            
-        return self._config
-
-    @property
-    def Props(self):
-        propKeys = list(self.Config.Keys)
-        if self.Config.maps:
-            propKeys += list(self.Config.maps.keys())
-        
-        return propKeys
-    
-
-    def get(self,key):
-        '''
-        mapping key must not have same value with maped key.
-        '''
-        
-        if not self._config:
-            self.loadOptions()
-  
-        
-        if key in self._config and self._config[key] != None: # Map value or already have value
-            siwave_id = self.edbapp.Edb.ProductId.SIWave
-            cell = self.cell 
-            val= cell.GetProductProperty(siwave_id, int(self._config[key]))
-            if val[0]:
-                return val[1]
-            else:
-                log.error("Get Property error: %s"%(self.key))
-#             cell.SetProductProperty(siwave_id, 515, '1')
-        
-        if not isinstance(key, str): #key must string
-            log.exception("Property error: %s"%(self.key))
-        
-        
-    
-    def set(self,key,value):
-        '''
-        mapping key must not have same value with maped key.
-        '''
-        
-        if not self._config:
-            self.loadOptions()
-  
-        
-        if key in self._config and self._config[key] != None: # Map value or already have value
-            siwave_id = self.edbapp.Edb.ProductId.SIWave
-            cell = self.cell
-            rst = cell.SetProductProperty(siwave_id,int(self._config[key]), str(value))
-            if not rst:
-                log.error("Get Property error: %s"%(self.key))
-
-        if not isinstance(key, str): #key must string
-            log.exception("Property error: %s"%(str(key)))
-
-
-
-    def loadOptions(self):
-        cfgPath = os.path.join(appDir,"SIwaveProductProperties.cfg")
-        cfgDict = readCfgFile(cfgPath)
-        maps = {}
-        for key,value in cfgDict.items():
-            key2 = key.replace("_","") ##remove -  
-            if key2 != key:
-                key3 = key.title().replace("_","")
-                maps[key3] = key
-        self._config = Config(cfgDict)
-        self._config.setMaps(maps)
-
 
 
 def initEdb(version=None, installDir=None):
@@ -273,8 +155,12 @@ class EdbApp(object):
         self._edb = None
         self.db = None
         self.cell = None
+        self.layout = None
         
         self._siaveOptions = None
+        self._pinGroups = None
+        self._components = None
+        self._layers = None
         self.pyEdb = None
         
         if edbpath:
@@ -286,15 +172,12 @@ class EdbApp(object):
         """
         #if self.saveEdb and self.db and not self.db.IsNull():
 #         self.del2()
-        if self.db and not self.db.IsNull():
-            self.db.Save()
-            self.db.Close()
-
-
-    def del2(self):
-        if self.db and not self.db.IsNull():
-            self.db.Save()
-            self.db.Close()
+        try:
+            if self.db and not self.db.IsNull():
+                self.db.Save()
+                self.db.Close()
+        except:
+            pass
 
     def initPyEdb(self):
         try:
@@ -348,10 +231,33 @@ class EdbApp(object):
         if self._siaveOptions == None:
             if not self.cell:
                 log.exception("cell is null, please open aedb file first.")
-            self._siaveOptions = EdbSIwaveOptions(self,self.cell)
+            self._siaveOptions = EdbSIwaveOptions(self)
         return  self._siaveOptions
-        
-        
+    
+    @property
+    def PinGroups(self):
+        if self._pinGroups == None:
+            if not self.cell:
+                log.exception("cell is null, please open aedb file first.")
+            self._pinGroups = EdbPinGroups(self)
+        return  self._pinGroups
+
+    @property
+    def Components(self):
+        if self._components == None:
+            if not self.cell:
+                log.exception("cell is null, please open aedb file first.")
+            self._components = EdbComponents(self)
+        return  self._components
+
+    @property
+    def Layers(self):
+        if self._layers == None:
+            if not self.cell:
+                log.exception("cell is null, please open aedb file first.")
+            self._layers = EdbLayers(self)
+        return  self._layers
+
     def open(self,edbpath=None):
 
         """
@@ -379,8 +285,107 @@ class EdbApp(object):
             log.exception('TopCircuitCell could not be found'.format(edbpath))
             return False
 
+        self.layout = self.cell.GetLayout()
+
         return True  
     
+
+    def attachEdb(self,hdb):
+        '''
+        not work @ list(self.db.TopCircuitCells) ...
+        '''
+        if is_linux:
+            try:
+                from ansys.aedt.core.generic.clr_module import _clr # @UnresolvedImport
+            except:
+                log.exception("pyaedt must be install on linux: pip install pyaedt")
+        else:
+            #for windows
+            import clr as _clr # @UnresolvedImport
+        
+        from System import Convert
+
+        try:
+            self.Edb.Database.SetRunAsStandAlone(False)
+            hdl = Convert.ToUInt64(hdb)
+            self.db = self.Edb.Database.Attach(hdl)
+        except:
+            log.exception("attach edb error.")
+            return False
+
+        if self.db.IsNull():
+            log.exception('Edb could not be opened')
+            return False
+        cells = list(self.db.TopCircuitCells)
+        if cells:
+            self.cell = cells[0]
+        if self.cell and self.cell.IsNull():
+            log.exception('TopCircuitCell could not be found')
+            return False
+
+        return True  
+
+
+
+    def loadLayout(self,layoutPath ,edbOutPath = None,controlFile = "", layoutType = None, extractExePath = None):
+        '''
+        doc
+        '''
+   
+        if not layoutType:
+            if layoutPath[-4:].lower() in [".brd",".mcm",".sip"]:
+                layoutType = "Cadence"
+            elif layoutPath[-4:].lower() in [".siw"]:
+                layoutType = "SIwave"
+            elif layoutPath[-5:].lower() in [".aedt","aedtz"]:
+                layoutType = "AEDT"
+            elif layoutPath[-5:].lower() in [".aedb"]:
+                layoutType = "EDB"
+            elif layoutPath[-7:].lower() in ["edb.def"]:
+                layoutType = "EDB"
+                
+            elif layoutPath[-4:].lower() in [".tgz"]:
+                layoutType = "ODB++"
+                
+            elif layoutPath[-4:].lower() in [".gds"]:
+                layoutType = "GDS"
+                
+            else:
+                raise Exception("Layout type must be specified")
+        
+        if extractExePath:
+            if extractExePath[-4:].lower() == ".exe":
+                extractExePath = os.path.dirname(extractExePath)
+                
+            if extractExePath not in os.environ['PATH']:
+                os.environ['PATH'] = os.pathsep.join([extractExePath,os.environ['PATH']])
+                log.debug(os.environ['PATH'])
+        
+        
+        if layoutType.lower() == "aedt":
+            self.open(layoutPath[:-4]+"aedb")
+        elif layoutType.lower() == "edb":
+            self.open(layoutPath)
+        elif layoutType.lower() == "cadence":
+            if not edbOutPath:
+                edbOutPath = layoutPath[:-4] + ".aedb"
+            if not controlFile:
+                controlFile = ""
+            # self.importBrd(layoutPath,edbOutPath,controlFile)
+        elif layoutType.lower() == "odb++":
+            if not edbOutPath:
+                edbOutPath = layoutPath[:-4] + ".aedb"
+            if not controlFile:
+                controlFile = ""
+            # self.importODB(layoutPath,edbOutPath,controlFile)
+
+        elif layoutType.lower() == "siwave":
+            self.importSIwave(layoutPath)
+
+        else:
+            raise Exception("Unknow layout type")
+    
+        
     def save(self):
         if self.db and not self.db.IsNull():
             self.db.Save()
@@ -393,6 +398,29 @@ class EdbApp(object):
         else:
             log.error("Database not valid.")
     
+
+    def importSIwave(self,path,edbPath = None):
+        if edbPath == None:
+            edbPath = os.path.splitext(self.ProjectPath)[0]+"aedb"
+
+        execPath = os.path.join(self.ProjectDir, "SaveSiw.exec") 
+        with open(execPath,"w+") as f:
+            f.write("SaveEdb %s"%edbPath)
+            f.close()
+
+        if self.installDir not in os.environ['PATH']:
+            split = ";" if 'nt' in os.name else ":"
+            os.environ['PATH'] = split.join([self.installDir,os.environ['PATH']])
+            log.debug(os.environ['PATH'])
+
+        cmd = '"{0}" {1} {2} -formatOutput'.format("siwave_ng",path,execPath)
+        log.info("Import Siwave to Aedt: %s"%path)
+        with os.popen(cmd,"r") as output:
+            for line in output:
+                log.info(line)
+            output.close()
+        self.open(edbPath)
+
     def exportSiwave(self,edbpath=None,path=None):
         edbpath = edbpath or self.edbpath
         return edbToSIwave(edbpath, path,self.installDir)
@@ -400,7 +428,8 @@ class EdbApp(object):
 
 if __name__ == "__main__":
     from ansys.aedt.core import Edb
-    edbapp = Edb(edbpath=r"C:\work\Project\AE\Script\PSI\PSI_automation_testCase\edb\SIWAVE_PDN_TEST_0716_group1.aedb", edbversion="2024.2")
+    edbapp = Edb(edbpath=r"C:\work\Project\AE\Script\PSI\PSI_automation_testCase\edb\SIWAVE_PDN_TEST_0716_group1.aedb", 
+        edbversion="2024.2")
     siwave_id = edbapp.edb_api.ProductId.SIWave
     cell = edbapp.active_cell._active_cell
     cell.SetProductProperty(siwave_id, 515, '1')

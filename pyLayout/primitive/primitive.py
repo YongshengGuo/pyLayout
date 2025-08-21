@@ -34,9 +34,6 @@ class Primitive(object):
         object (_type_): _description_
     '''
 
-    layoutTemp = None
-    
-    
     def __init__(self, name, layout=None):
         '''Initialize Pin object
         Args:
@@ -44,12 +41,7 @@ class Primitive(object):
             layout (PyLayout): PyLayout object, optional
         '''
         self.name = name
-        if layout:
-            self.__class__.layoutTemp = layout
-            self.layout = layout
-        else:
-            self.layout = self.__class__.layoutTemp
-
+        self.layout = layout
         self._info = None
         self.maps = {}
         self.parsed = False
@@ -128,7 +120,7 @@ class Primitive(object):
         
         log.debug("parse primitive: %s"%self.name)
         self._info = ComplexDict()
-        maps = self.maps.copy()
+        maps = self.maps
 #         self._info.update("Name",self.name) #add name to Info
         
         #--- for BaseElementTab peoperty
@@ -153,8 +145,8 @@ class Primitive(object):
             }})
         
         #for Polygon Object
-        def __area(self2):
-            polygon = self2.layout.oEditor.GetPolygon(self2.name)
+        def __area(self):
+            polygon = self.layout.oEditor.GetPolygon(self.name)
             return polygon.Area() if polygon else None
         
         maps.update({"Area":{
@@ -162,14 +154,29 @@ class Primitive(object):
             "Get":lambda s: __area(s)
             }})
         
+        #for bbox
+        def __GetBBox(self):
+            bbox = self.layout.oEditor.GetBBox(self.name)
+            if bbox:
+                LL = bbox.BBoxLL()
+                UR = bbox.BBoxUR()
+                return [Point(LL),Point(UR)] 
+            else:
+                return None
+
+        maps.update({"BBox":{
+            "Key":"self",
+            "Get":lambda s: __GetBBox(s)
+            }})
+
         self.maps = maps
         self._info.setMaps(maps)
         self.parsed = True
 
 
-    def __area(self,name):
-        polygon = self.layout.oEditor.GetPolygon(self.name)
-        return polygon.Area() if polygon else None
+#     def __area(self,name):
+#         polygon = self.layout.oEditor.GetPolygon(self.name)
+#         return polygon.Area() if polygon else None
 
     def get(self,key):
         '''
@@ -313,7 +320,6 @@ class Primitive(object):
     def delete(self):
         
         type = self.Type
-        
         #for port objects, PlanarEM Type
         if type in ["Circuit","Single Strip Gap Source"]: 
             type = "Port"
@@ -467,6 +473,10 @@ class Primitives(object):
     
         
     def refresh(self):
+        if self._objectDict:
+            self._objectDict.clear()
+#             del self._objectDict
+            
         self._objectDict  = None
 
         

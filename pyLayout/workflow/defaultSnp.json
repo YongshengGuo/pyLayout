@@ -1,0 +1,127 @@
+{
+  "Header": {
+    "Version": 0.1,
+    "Date": 20230330,
+    "UserID": "xxx",
+    "Comment": "Comment",
+    "Name": null
+  },
+  "AEDT": {
+    "Version": null,
+    "InstallPath": null,
+    "UsePyaedt": false,
+    "WaitForLicense": false,
+    "LicenseServer": "1055@shnyguo",
+    "KeepGUILicense": true,
+    "NonGraphical":false,
+    "NewSession":false,
+    "MultiProcess":1
+  },
+  "Import": {
+    "Enable": true,
+    "LayoutType": null,
+    "LayoutVersion": null,
+    "LayoutPath": null,
+    "ControlFile": "",
+    "EdbOutPath": null,
+    "SaveAs":null,
+    "extractExePath": null
+  },
+  "Stackup": {
+    "Enable": true,
+    "Matrials": {
+      "FR4": {
+        "DK": "3.8",
+        "DF": "0.015"
+      }
+    },
+    "Layers": []
+  },
+  "Component": {
+    "Enable": true,
+    "Models":{"C1":{"Refdes":"C1","Part":"cap1","Type":"Capacitor","Model":null,"R":null,"L":null,"C":null,"FileName":null}}
+  },
+  "ClearLayout": {
+    "Enable": true,
+    "KeepNetWithPort": true,
+    "KeepNet": [],
+    "RemoveNet": [],
+    "RemoveComponentConnectedNetsLessThen": 1
+  },
+
+  "Cutout": {
+    "Enable": true,
+    "NetInclude": [],
+    "NetClip": [
+      "GND",
+      "VSS"
+    ],
+    "KeepOtherNets": false,
+    "KeepPowerNet": false,
+    "CutExpansion": "1mm",
+    "SubProjectName": null
+  },
+  "BackDrill": {
+    "Enable": false,
+    "Nets": [],
+    "Stub": "8mil"
+  },
+  "Ports": {
+    "Enable": true,
+    "PortOnNets": [],
+    "PortbyPins": [{"PosPins":[],"NegPins":[],"Name":null}],
+    "RefNets": [],
+    "OrderPorts": {
+      "Enable": false,
+      "CompOrder": null,
+      "NetOrder": null,
+      "PortOrder": null
+    },
+    "SolderBall": {
+      "Enable": true,
+      "Default": [
+        "Auto",
+        "Auto"
+      ],
+      "Ratio": [
+        0.7,
+        0.7
+      ]
+    },
+    "PortOnRLC": false,
+    "IgnoreComponent": [],
+    "IgnorePart": [],
+    "PortZ0": {"Signal":50,"Power":0.1}
+  },
+  "Setup": {
+    "Enable": true,
+    "Name": "HFSSAutoSetup",
+    "SolutionType": "HFSS",
+    "Options": {
+      "AdaptiveFrequency": "5Ghz",
+      "MaxPasses": 20,
+      "Order": "Mixed",
+      "DeltaS": 0.02
+      },
+      "Sweep": {
+        "Enable": true,
+        "Name": "sweep1",
+        "Options": {
+          "SweepType": "Interpolating",
+          "InterpolatingTolerance": 0.02,
+          "SweepData": "LIN 0GHz 20GHz 0.01GHz"
+        }
+      }
+  },
+
+  "Analysis": {
+    "Enable": true,
+    "host":"localhost",
+    "Cores": 4,
+    "HPCType":"Pack",
+    "ExportSNP": true,
+    "ExportProfile": true,
+    "ExportConvergence": true,
+    "SnpPath": null
+  }
+}

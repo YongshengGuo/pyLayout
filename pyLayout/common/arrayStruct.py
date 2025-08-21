@@ -81,7 +81,7 @@ def getArrayData(datas, keys):
         for i in range(len(datas)):
             val = datas[i]
             
-            if isinstance(val, (list,tuple)):
+            if isinstance(val, (list,tuple,ArrayStruct)):
                 key = "NAME:%s"%keys[0]
                 for val2 in val:
                     if isinstance(val2, str) and key.lower() == val2.lower():
@@ -93,7 +93,7 @@ def getArrayData(datas, keys):
             else:
                 continue
             
-        raise Exception("key not in array:%s"%str(keys))
+        raise Exception("key %s not in array"%str(keys))
                     
 def setArrayData(datas,keys,value):
 
@@ -115,7 +115,7 @@ def setArrayData(datas,keys,value):
         flag = False
         for i in range(len(datas)):
             val = datas[i]
-            if isinstance(val, (list,tuple)):
+            if isinstance(val, (list,tuple,ArrayStruct)):
                 key = "NAME:%s"%keys[0]
                 for val2 in val:
                     if isinstance(val2, str) and key.lower() == val2.lower():
@@ -124,7 +124,8 @@ def setArrayData(datas,keys,value):
             elif isinstance(val, (str)):
                 key = "%s:="% keys[0]
                 if key.lower() == val.lower():
-                    datas[i+1] = value
+#                     datas[i+1] = value
+                    datas[i+1] = datas[i+1].__class__(value)
                     flag = True
             else:
                 continue
@@ -147,7 +148,7 @@ def delArrayKey(datas,keys,ignorCase = True):
         for i in range(len(datas)):
             val = datas[i]
             
-            if isinstance(val, (list,tuple)):
+            if isinstance(val, (list,tuple,ArrayStruct)):
                 key = "NAME:%s"%keys[0]
                 for val2 in val:
                     if isinstance(val2, str) and key.lower() == val2.lower():
@@ -199,7 +200,7 @@ class ArrayStruct(object):
                     if isinstance(mapKey["Key"], str): #if only one key
                         data = self.get(mapKey["Key"])
                         return mapKey["Get"](data)
-                    elif isinstance(mapKey["Key"], (list,tuple)): #if more then one key
+                    elif isinstance(mapKey["Key"], (list,tuple,ArrayStruct)): #if more then one key
                         datas = [self.get(value) for value in mapKey["Key"]] 
                         return mapKey["Get"](*datas)
                     else:
@@ -210,7 +211,8 @@ class ArrayStruct(object):
         #Array key
         val = self.get(key)
         if isinstance(val, (list,tuple)):
-            return self.__class__(val)
+            return ArrayStruct(val)
+#             return self.__class__(val)
         else:
             return val
         #return self.get(key)
@@ -218,7 +220,7 @@ class ArrayStruct(object):
     def __setitem__(self,key,value):
         
         #map key have high priority then Array key
-        if self.maps and isinstance(self.maps, dict):
+        if self.maps and isinstance(self.maps, (dict,ComplexDict)):
             maps = ComplexDict(self.maps)
             if key in maps:
                 log.debug("found key in array, mapKey: %s->%s:"%(key,maps[key]))
@@ -226,7 +228,7 @@ class ArrayStruct(object):
                 if isinstance(mapKey,ComplexDict): #if map key is dict, execulte lambda function
                     if isinstance(mapKey["Key"], str): #if only one key
                         self.set(mapKey["Key"],mapKey["Set"](value))
-                    elif isinstance(mapKey["Key"], (list,tuple)): #if more then one key, lambda should return same size value
+                    elif isinstance(mapKey["Key"], (list,tuple,ArrayStruct)): #if more then one key, lambda should return same size value
                         for i in range(len(mapKey["Key"])):
                             self.set(mapKey["Key"][i],mapKey["Set"](value)[i])
                     else:
@@ -333,7 +335,7 @@ class ArrayStruct(object):
             for item in self._datas:
                 if isinstance(item, str) and item.endswith(":="):
                     self._keys.append(item[:-2] )
-                if isinstance(item, (list,tuple)):
+                if isinstance(item, (list,tuple,ArrayStruct)):
                     for subItem in item:
                         if isinstance(item, str) and item.startswith("NAME:"):
                             self._keys.append(subItem[5:])
@@ -365,7 +367,7 @@ class ArrayStruct(object):
             keyList = re.split(r"[\\/]", path)
             return self.get(keyList)
         
-        if isinstance(path,(list,tuple)):
+        if isinstance(path,(list,tuple,ArrayStruct)):
             keys = list(filter(lambda k:k.strip(),path)) #filter empty key
             return getArrayData(datas, keys)
         
@@ -380,16 +382,15 @@ class ArrayStruct(object):
             keyList = re.split(r"[\\/]", path)
             return self.set(keyList,value)
         
-        if isinstance(path,(list,tuple)):
+        if isinstance(path,(list,tuple,ArrayStruct)):
             keys = list(filter(lambda k:k.strip(),path)) #filter empty key
             return setArrayData(datas, keys, value)
         
         raise Exception("key not found: %s"%str(path))
     
-    def append(self,key,value):
-        val = list(self[key])
-        val.append(value)
-        self[key] = val
+    def append(self,value):
+        self._datas.append(value)
+
     
     def delKey(self,path):
         
@@ -401,23 +402,46 @@ class ArrayStruct(object):
             keyList = re.split(r"[\\/]", path)
             return self.delKey(keyList)
         
-        if isinstance(path,(list,tuple)):
+        if isinstance(path,(list,tuple,ArrayStruct)):
             keys = list(filter(lambda k:k.strip(),path)) #filter empty key
             return delArrayKey(datas, keys)
             
         raise Exception("key not found: %s"%str(path))
         
         
-    
     def update(self,datas):
         '''
         data should be like dict: dict, ComplexDict, ArrayStruct
         '''
         for item in datas:
-            if item in self:
+            try:
                 self[item] = datas[item]
-            else:
+            except:
                 log.debug("item not found when update ArrayStruct: %s"%item)
+#         for item in datas:
+#             if item in self:
+#                 self[item] = datas[item]
+#             else:
+#                 log.debug("item not found when update ArrayStruct: %s"%item)
+    
+    def updateByKey(self,key,value):
+        '''
+        update all matched key to value 
+        '''
+        count = [0]  #python 2.7 not support nonlocal keyword
+        def _update(key,value,datas):
+            
+            for k in datas:
+                if isinstance(k, (list,tuple,ArrayStruct)):
+                    _update(key,value,k)
+                elif isinstance(k, str) and k.lower() == "%s:="%key.lower():
+                    index = datas.index(k)+1
+                    datas[index] = datas[index].__class__(value)
+                    count[0] = count[0] + 1
+                else:
+                    pass
+        _update(key, value, self.Datas) 
+        return count[0]
     
     def setMaps(self,maps):
         self.maps = maps

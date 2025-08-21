@@ -19,16 +19,11 @@ from ..common.common import log
 
 class Solution(object):
     
-    layoutTemp = None
-    
+
     def __init__(self,name = None,variation = None,layout=None):
         
         self.name = name
-        if layout:
-            self.__class__.layoutTemp = layout
-            self.layout = layout
-        else:
-            self.layout = self.__class__.layoutTemp
+        self.layout = layout
         
 #     @property
 #     def oModule(self):
@@ -99,10 +94,7 @@ class Solutions(object):
     
     def __init__(self,layout=None):
         self.solutionDict = None #ComplexDict component buffer
-        
         self.layout = layout
-        if layout:
-            Solution.layoutTemp = layout
             
     def __getitem__(self, key):
         """

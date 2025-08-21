@@ -12,7 +12,7 @@ import os,sys,re
 from .common.common import log
 
 
-from .layoutOptions import options
+# from .options import options
 
 #log is a globle variable
 from .common import common
@@ -90,17 +90,25 @@ def initializeDesktop(version=None, installDir=None, nonGraphical = False,newDes
          
     if aedtInstallDir: 
         print("AEDT InstallDir: %s"%aedtInstallDir)
-        sys.path.insert(0,aedtInstallDir)
-        sys.path.insert(0,os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin').replace('\\', '/'))
     else:
         log.exception("please set environ ANSYSEM_ROOT=Ansys EM install path...")
-        
-#     sys.path.insert(0,aedtInstallDir)
-#     sys.path.insert(0,os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin'))
     
+    
+    sys.path.insert(0,aedtInstallDir)
+    sys.path.insert(0,os.path.join(aedtInstallDir, 'PythonFiles', 'DesktopPlugin').replace('\\', '/'))
+    
+#     #path for UDM,UDP
+#     sys.path.insert(0,os.path.join(aedtInstallDir,r"syslib\UserDefinedModels\Lib"))
+#     sys.path.insert(0,os.path.join(aedtInstallDir,r"PythonFiles\Geometry3DPlugin"))
+#     sys.path.insert(0,os.path.join(aedtInstallDir,r"syslib\ACT\ATKDesign\Lib\UDMScript"))
+#     #clr.AddReference("Ansys.Ansoft.Geometry3DPluginDotNet")
+# 
+#     os.environ["ANSYS_OADIR"] = os.path.join(aedtInstallDir,'common','oa')
+#     os.environ["PATH"] = aedtInstallDir + os.pathsep + os.environ["PATH"] 
+
     
     # set version from aedtInstallDir
-    if version == None:
+    if not version:
         ver1 = re.split(r"[\\/]+", aedtInstallDir)[-2]
         ver2 = ver1.replace(".", "")[-3:]
         version = "Ansoft.ElectronicsDesktop.20%s.%s" % (ver2[0:2],ver2[2])
@@ -132,15 +140,22 @@ def initializeDesktop(version=None, installDir=None, nonGraphical = False,newDes
         else: 
             try:
                 #for python
-                log.info("Intial AEDT from python win32com")
+                log.info("Intial AEDT from python win32com, AEDT Version: %s"%version)
+                
+                #Aedt Version: Ansoft.ElectronicsDesktop.2025.1.0, remove .0  #20250605
+                splits = version.split(".")
+                if len(splits)>4:
+                    version = ".".join(splits[:4])
+                
                 import win32com.client  # @UnresolvedImport
                 oAnsoftApp = win32com.client.Dispatch(version)
                 oDesktop = oAnsoftApp.GetAppDesktop()
             except:
-                    log.info("Intial AEDT from python win32com fail")
+                    log.info("Intial AEDT from python win32com fail, AEDT Version: %s"%version)
                     oDesktop = None
  
     if oDesktop != None:
+        Module.oDesktop = oDesktop
         return oDesktop
     
     
@@ -183,16 +198,27 @@ def initializeDesktop(version=None, installDir=None, nonGraphical = False,newDes
         
         
     if oDesktop != None:
+        Module.oDesktop = oDesktop
         return oDesktop
         
             
     if oDesktop == None:
         raise ValueError("initialize Desktop fail")
+    
+    Module.oDesktop = oDesktop
     return oDesktop
 
 
 def _delete_objects():
     module = sys.modules["__main__"]
+    
+    try:
+        pid = module.oDesktop.GetProcessID()
+        os.kill(pid, 9)
+    except:
+        pass
+
+    
     try:
         del module.COMUtil
     except AttributeError:

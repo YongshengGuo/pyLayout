@@ -62,6 +62,3 @@ class Subckt(object):
         splits = header.split()
         self.name = splits[1]
         self.nodes = splits[2:]
-        
-
-    

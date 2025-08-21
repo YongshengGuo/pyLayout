@@ -78,27 +78,53 @@ class Pin(Primitive):
         super(self.__class__,self).parse(force) #initial component properties
         
         name = self.name
-        maps = self.maps.copy()
+        maps = self.maps
         names = re.split(r"[.-]+", name, maxsplit = 1)
-        if len(names) <2:
-#                 log.exception("pinName pattern error: %s, should be like: U1-A1 or U1.A1"%pinName) 
+        
+        if "Component Pin" in self and len(names) >1:
+            #in component
+            self._info.update("CompName",names[0])
+            self._info.update("pinName",names[-1]) #self["Component Pin"]
+        else:
             log.debug("floating pin found: %s"%name)
             self._info.update("CompName",None)
             self._info.update("pinName",name)
-        else:
-            self._info.update("CompName",names[0])
-            self._info.update("pinName",names[1])
-  
         
-        comp = self._info.CompName
-        
-        if comp in self.layout.Components:
-            pinInfo = self.layout.oEditor.GetComponentPinInfo(comp, name)
-            for k,v in filter(lambda x:len(x)==2,[i.split("=",1) for i in pinInfo]):
-                self._info.update(k,v)
-        
+#         if len(names) <2:
+# #                 log.exception("pinName pattern error: %s, should be like: U1-A1 or U1.A1"%pinName) 
+#             log.debug("floating pin found: %s"%name)
+#             self._info.update("CompName",None)
+#             self._info.update("pinName",name)
 #         else:
-#         # GetComponentPinInfo ConnectionPoints not right
+#             self._info.update("CompName",names[0])
+#             self._info.update("pinName",names[1])
+            # get pin information from oEditor.GetComponentPinInfo API
+            # 
+            # "PinInfo":['PinName = UI-A1', 'Type=Pin, Padstack: C35', 'X=0.005647', 'Y=-0.023463', 
+            # 'ConnectionPoints= 0.005647 -0.023463 Dir:NONE Layer: TOP', 'NetName=ZQ_U1']
+            # 
+            # oEditor.GetProperties("BaseElementTab","U8-4")
+            # ['Type', 'LockPosition', 'Name', 'Net', 'Padstack Definition', 'Padstack Usage', 
+            # 'Start Layer', 'Stop Layer', 'Backdrill Top', 'Top Offset', 'Backdrill Bottom', 'Bottom Offset', 
+            # 'OverrideHoleDiameter', 'HoleDiameter', 'Location', 'Angle', 'Component Pin']
+            comp = names[0]
+            if comp in self.layout.Components:
+                pinInfo = self.layout.oEditor.GetComponentPinInfo(comp, name)
+                for k,v in filter(lambda x:len(x)==2,[i.split("=",1) for i in pinInfo]):
+                    self._info.update(k,v)
+            else:
+                compObj = self.layout.Components.findComponentByPin(self.name)
+                if compObj:
+                    self._info.update("CompName",compObj.Name)
+                    self._info.update("pinName",self.name)
+                    pinInfo = self.layout.oEditor.GetComponentPinInfo(compObj.Name, name)
+                    for k,v in filter(lambda x:len(x)==2,[i.split("=",1) for i in pinInfo]):
+                        self._info.update(k,v)
+                else:
+                    log.error("component not found for pin %s"%self.name)
+                    self._info.update("CompName",None)
+                    self._info.update("pinName",self.name)
+
         maps.update({"X":{
             "Key":"self",
             "Get":lambda v:v.Location.xvalue
@@ -140,23 +166,7 @@ class Pin(Primitive):
         else:
             return None
     
-#     def getConnectedObjs(self, type="*", layer = None):
-#         if not self.Net:
-#             log.info("via not have net name")
-#             return []
-#         objs =  self.layout.oEditor.FindObjects('Net', self.Net)
-#         objs = self.layout.oEditor.FilterObjectList('Type',type,objs) #filter object
-#         if layer:
-#             objs = self.layout.oEditor.FilterObjectList('Layer',self.layout.Layers[layer].Name, objs) #filter layer
-#         
-#         try:
-#             pt = self.layout.oEditor.Point().Set(self.X,self.Y)
-#             objC = [obj for obj in objs if self.layout.oEditor.GetPolygon(obj).CircleIntersectsPolygon(pt,0.1e-3)]
-#         except:
-#             log.info("Try to get getConnected Objs error,return []")
-#             objC = []
-#         return objC
-    
+
 
     def backdrill(self,stub = None):
         '''
@@ -202,6 +212,28 @@ class Pin(Primitive):
             self.BottomOffset = stub
             self.update()
 
+    def getNearestRefPin(self,PinList = None, net = None):
+        '''
+        get nearest pin to self
+        '''
+        if not PinList and net:
+            # PinList = self.layout.Nets[net].getConnectedObjs("pin")
+            PinList = [pin for pin in self.layout.Components[self.CompName].Pins if pin.Net == net]
+
+        if not PinList:
+            log.exception("PinList is empty. Please check Pinlist.")
+
+        nearPin = None
+        nearDis = 1e9
+        for pin in PinList:
+            if isinstance(pin,str):
+                pin = self.layout.pins[pin]
+            dis = abs((pin.Location - self.Location))
+            if dis < nearDis:
+                nearPin = pin
+                nearDis = dis
+
+        return nearPin
 
 class Pins(Primitives):
     

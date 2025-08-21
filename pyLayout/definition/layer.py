@@ -43,6 +43,7 @@ get component information from oEditor.GetComponentInfo API
 
 
 import re,os
+import math
 from ..common import hfss3DLParameters
 from ..common.arrayStruct import ArrayStruct
 from ..common.complexDict import ComplexDict
@@ -76,34 +77,36 @@ class Layer(Definition):
 #     'Thickness0: 0.04826mm', 'LowerElevation0: 1.98628mm', 'Roughness0 Type: Groiss', 'Roughness0: 0um', 'BottomRoughness0 Type: Groiss', 
 #     'BottomRoughness0: 0um', 'SideRoughness0 Type: Huray', 'SideRoughness0: 0.5um, 2.9']
     
-    maps = {
-        "LayerName":"Name",
-        "T":"Thickness0",
-        "Thickness":"Thickness0",
-        "H":"LowerElevation0",
-        "Height":"LowerElevation0",
-        "Material":"Material0",
-        "ID":"LayerId",
-        "FillMaterial":"FillMaterial0",
-        "LowerElevation":"LowerElevation0",
-        "Lower":"LowerElevation0",
-        "Upper": {"Key":("LowerElevation0","Thickness0"),"Get": lambda L,T:(Unit(L)+T)[Unit(L).U]},
-        "UpperElevation": {"Key":("LowerElevation0","Thickness0"),"Get": lambda L,T:(Unit(L)+T)[Unit(L).U]},
-        "TopRoughnessType":"Roughness0 Type",
-        "TopRoughness":"Roughness0",
-        "BottomRoughnessType":"BottomRoughness0 Type",
-        "BottomRoughness":"BottomRoughness0",
-        "SideRoughnessType":"SideRoughness0 Type",
-        "SideRoughness":"SideRoughness0",
-        "UseRoughness":"UseR",
-        "Roughness":{"Key":("Roughness0","BottomRoughness0","SideRoughness0"),"Get": lambda T,B,S: T,"Set": lambda x: [x]*3},
-        "RoughnessType":{"Key":("Roughness0 Type","BottomRoughness0 Type","SideRoughness0 Type"),"Get": lambda T,B,S: T,"Set": lambda x: [x]*3},
-        }
+ 
     
     _enableUpdate = True
 
     def __init__(self, name = None,array = None,layout = None):
         super(self.__class__,self).__init__(name,type="Layer",layout=layout)
+        self.maps = {
+                "LayerName":"Name",
+                "T":"Thickness0",
+                "Thickness":"Thickness0",
+                "H":"LowerElevation0",
+                "Height":"LowerElevation0",
+                "Material":"Material0",
+                "ID":"LayerId",
+                "FillMaterial":"FillMaterial0",
+                "LowerElevation":"LowerElevation0",
+                "Lower":"LowerElevation0",
+                "Upper": {"Key":("LowerElevation0","Thickness0"),"Get": lambda L,T:(Unit(L)+T)[Unit(L).U]},
+                "UpperElevation": {"Key":("LowerElevation0","Thickness0"),"Get": lambda L,T:(Unit(L)+T)[Unit(L).U]},
+                "TopRoughnessType":"Roughness0 Type",
+                "TopRoughness":"Roughness0",
+                "BottomRoughnessType":"BottomRoughness0 Type",
+                "BottomRoughness":"BottomRoughness0",
+                "SideRoughnessType":"SideRoughness0 Type",
+                "SideRoughness":"SideRoughness0",
+                "UseRoughness":"UseR",
+                "Roughness":{"Key":("Roughness0","BottomRoughness0","SideRoughness0"),"Get": lambda T,B,S: T,"Set": lambda x: [x]*3},
+                "RoughnessType":{"Key":("Roughness0 Type","BottomRoughness0 Type","SideRoughness0 Type"),"Get": lambda T,B,S: T,"Set": lambda x: [x]*3},
+                "EtchAngle":{"Key":"EtchFactor","Get": lambda x: math.degrees(math.atan(float(x))),"Set": lambda x: math.tan(math.radians(float(x)))},
+                }
         self._info.update("autoUpdate",True)
     
 
@@ -208,7 +211,7 @@ class Layer(Definition):
         if self.parsed and not force:
             return
         
-        maps = self.maps.copy()
+        maps = self.maps
         info = ComplexDict(dict(filter(lambda x: len(x) == 2, [p.lstrip().split(": ", 1) for p in self.layout.oEditor.GetLayerInfo(self.name)])))
         
         
@@ -390,10 +393,10 @@ class Layer(Definition):
                 if "Material" not in info or not info["Material"].strip():
                     layerDict["Material"] = "Cond_%s"%str(info["Cond"])
                 if info["Material"] not in self.layout.Materials:
-                    self.layout.Materials.add({"Name":info["Material"],
+                    material = self.layout.Materials.add({"Name":info["Material"],
                                                       "Cond": info["Cond"]
                                                       })
-
+                    layerDict["Material"] = material.Name
                     
             #if DK,DF have value, it will have higher priority the materail in definitions
             if "DK" in info and info["DK"]:
@@ -402,10 +405,12 @@ class Layer(Definition):
                 
                 #consider DK,df maybe not same with material in project, alway update #20240314
                 layerDict["FillMaterial"] = "DK%sDF%s"%(info["DK"],info["DF"])
-                self.layout.Materials.add({"Name":info["FillMaterial"],
+                material = self.layout.Materials.add({"Name":info["FillMaterial"],
                                                   "DK": info["DK"],
-                                                  "DF": info["DF"]
+                                                  "DF": info["DF"],
+                                                  "Freq":info["Freq"] if "Freq" in info else None
                                                   })
+                layerDict["FillMaterial"] = material.Name
                 
             elif "FillMaterial" in info and info["FillMaterial"]:
                 if info["FillMaterial"] not in self.layout.Materials:
@@ -424,10 +429,12 @@ class Layer(Definition):
 
                 #consider DK,df maybe not same with material in project, alway update #20240314
                 layerDict["Material"] = "DK%sDF%s"%(info["DK"],info["DF"])
-                self.layout.Materials.add({"Name":info["Material"],
+                material = self.layout.Materials.add({"Name":info["Material"],
                                                   "DK": info["DK"],
-                                                  "DF": info["DF"]
+                                                  "DF": info["DF"],
+                                                  "Freq":info["Freq"] if "Freq" in info else None
                                                   })
+                layerDict["Material"] = material.Name
                 
             elif "Material" in info and info["Material"].strip():
                 if info["Material"] not in self.layout.Materials:
@@ -791,59 +798,6 @@ class Layers(Definitions):
         self.layout.oEditor.RemoveLayer(layerName)
         if refresh:
             self.refresh()
-    
-#     def _quickUpdateLayers(self,layersInfo):
-#         '''
-#         layersInfo with all layer datas, layer height must give 
-#         '''
-#         condLayersInfo = [layer for layer in layersInfo if ComplexDict(layer)["Type"].lower() in ["signal","conductor"]]
-#         dielectricLayersInfo = [layer for layer in layersInfo if ComplexDict(layer)["Type"].lower() in ["dielectric"]]
-#         otherLayersInfo = [layer for layer in layersInfo if ComplexDict(layer)["Type"].lower() not in ["dielectric","signal","conductor"]]
-#         
-#         ConductorLayerNames = self.ConductorLayerNames
-#         DielectricLayerNames = self.DielectricLayerNames
-#         AllLayerNames = self.getAllLayerNames()
-#         
-#         Layer._enableUpdate = False
-#         #set  layer other datas
-#         if len(dielectricLayersInfo)>0:
-#             if len(dielectricLayersInfo) == len(DielectricLayerNames):
-#                 log.info("update dielectric layers data by index.")
-#                 for i in range(len(dielectricLayersInfo))[::-1]:
-#                     log.info("update dielectric layers data by index: %s"%DielectricLayerNames[i])
-#                     self[DielectricLayerNames[i]].setData(dielectricLayersInfo[i])
-#             else:
-#                 log.exception("update layers by index, Dielectric layer count (%s) not same with layout count (%s)."%(len(dielectricLayersInfo),len(DielectricLayerNames)))
-#         else:
-#             log.debug("Input dielectricLayersInfo length is 0, skip.")
-#         
-#         if len(condLayersInfo)>0:
-#             if len(condLayersInfo) == len(ConductorLayerNames):
-#                 log.info("update Conductor layers data by index.")
-#                 for i in range(len(condLayersInfo))[::-1]:
-#                     log.info("update Conductor layers data by index: %s"%ConductorLayerNames[i])
-#                     self[ConductorLayerNames[i]].setData(condLayersInfo[i])
-#             else:
-#                 log.exception("update layers by index, Conductor layer count (%s) not same with layout count (%s)."%(len(condLayersInfo),len(ConductorLayerNames)))
-# 
-#         else:
-#             log.debug("Input ConductorLayerNames length is 0, skip.")
-#         
-#         
-#         Layer._enableUpdate = True
-#         
-#         layerArrayDatas = []
-#         for layer in self.All:
-#             layerArrayDatas.append(layer.ArrayDatas)
-# 
-#         self.layout.oEditor.ChangeLayers([
-#             "NAME:layers",
-#             "Mode:=", "Laminate",
-#             [
-#                 "NAME:pps"
-#             ]]+layerArrayDatas)
-#         
-#         self.refresh()
 
     
     def setLayerDatas(self,layersInfo,mode = 0):
@@ -1036,6 +990,11 @@ class Layers(Definitions):
                     del layerDict[key]
                     continue
                 
+                if key.lower() == "etchangle":
+                    layerDict["UseEtch"] = True
+                    layerDict["EtchFactor"] = math.tan(math.radians(float(layerDict[key])))
+                    continue
+
                 if key.lower() == "etchfactor":
                     layerDict["UseEtch"] = True
                     continue
@@ -1155,10 +1114,12 @@ class Layers(Definitions):
                 adjust = "above" if self["HalfStackup"] else "below"              
             
             if adjust == "above":
-                return self.layout.layers[flayer].offLayer(1 if distance>0 else 0,type=type).Name
+                flayer = self.layout.layers[flayer].offLayer(1 if distance>0 else 0,type=type).Name
             if adjust == "below":
-                return self.layout.layers[flayer].offLayer(0 if distance>0 else -1,type=type).Name
-                  
+                flayer = self.layout.layers[flayer].offLayer(0 if distance>0 else -1,type=type).Name
+            
+#            #for 2025.2 'Zone1;signal_3'
+#             flayer = flayer.split(";")[-1]
             return flayer
                     
         
